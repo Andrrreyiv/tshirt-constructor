@@ -1,0 +1,16 @@
+# Внутренние материалы клиента и планирование — НЕ публиковать
+docs/
+
+# Рабочие/промежуточные ассеты (в паблик идёт только mockups-final + prints)
+assets/mockups-raw/
+assets/mockups-clean/
+
+# Инструментальное
+.claude-flow/
+.playwright-mcp/
+node_modules/
+*.log
+
+# Временные скриншоты
+*-verify.png
+tshirt-*.png

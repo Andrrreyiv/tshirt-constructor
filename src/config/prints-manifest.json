@@ -1,0 +1,247 @@
+{
+  "_note": "Библиотека принтов клиента (25 PNG → webp-превью). Каждая категория = фильтр (папка). Клиент дозагрузит остальное через админку. Исходники print-ready в архиве Принты.zip.",
+  "basePrice": 0,
+  "categories": [
+    {
+      "slug": "bellingham",
+      "label": "Беллингем",
+      "items": [
+        {
+          "id": "bellingham-1",
+          "file": "assets/prints/bellingham/1.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "bellingham-2",
+          "file": "assets/prints/bellingham/2.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": true
+        }
+      ]
+    },
+    {
+      "slug": "mcgregor",
+      "label": "Конор Макгрегор",
+      "items": [
+        {
+          "id": "mcgregor-1",
+          "file": "assets/prints/mcgregor/1.webp",
+          "origW": 3889,
+          "origH": 5000,
+          "dark": false
+        },
+        {
+          "id": "mcgregor-2",
+          "file": "assets/prints/mcgregor/2.webp",
+          "origW": 3889,
+          "origH": 5000,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "tyson",
+      "label": "Майк Тайсон",
+      "items": [
+        {
+          "id": "tyson-1",
+          "file": "assets/prints/tyson/1.webp",
+          "origW": 3500,
+          "origH": 4500,
+          "dark": true
+        },
+        {
+          "id": "tyson-2",
+          "file": "assets/prints/tyson/2.webp",
+          "origW": 3500,
+          "origH": 4500,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "mbappe",
+      "label": "Мбаппе",
+      "items": [
+        {
+          "id": "mbappe-1",
+          "file": "assets/prints/mbappe/1.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "mbappe-2",
+          "file": "assets/prints/mbappe/2.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": true
+        }
+      ]
+    },
+    {
+      "slug": "messi",
+      "label": "Месси",
+      "items": [
+        {
+          "id": "messi-1",
+          "file": "assets/prints/messi/1.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "messi-2",
+          "file": "assets/prints/messi/2.webp",
+          "origW": 3000,
+          "origH": 3000,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "neymar",
+      "label": "Неймар",
+      "items": [
+        {
+          "id": "neymar-1",
+          "file": "assets/prints/neymar/1.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "neymar-2",
+          "file": "assets/prints/neymar/2.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "ronaldo",
+      "label": "Роналдо",
+      "items": [
+        {
+          "id": "ronaldo-1",
+          "file": "assets/prints/ronaldo/1.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "ronaldo-2",
+          "file": "assets/prints/ronaldo/2.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": false
+        },
+        {
+          "id": "ronaldo-3",
+          "file": "assets/prints/ronaldo/3.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": true
+        },
+        {
+          "id": "ronaldo-4",
+          "file": "assets/prints/ronaldo/4.webp",
+          "origW": 3111,
+          "origH": 4000,
+          "dark": true
+        }
+      ]
+    },
+    {
+      "slug": "countries",
+      "label": "Страны",
+      "items": [
+        {
+          "id": "countries-1",
+          "file": "assets/prints/countries/1.webp",
+          "origW": 3600,
+          "origH": 3600,
+          "dark": false
+        },
+        {
+          "id": "countries-2",
+          "file": "assets/prints/countries/2.webp",
+          "origW": 3600,
+          "origH": 3600,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "haaland",
+      "label": "Холанд",
+      "items": [
+        {
+          "id": "haaland-1",
+          "file": "assets/prints/haaland/1.webp",
+          "origW": 4500,
+          "origH": 5400,
+          "dark": false
+        },
+        {
+          "id": "haaland-2",
+          "file": "assets/prints/haaland/2.webp",
+          "origW": 4500,
+          "origH": 5400,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "worldcup2026",
+      "label": "Чемпионат мира 2026",
+      "items": [
+        {
+          "id": "worldcup2026-1",
+          "file": "assets/prints/worldcup2026/1.webp",
+          "origW": 3600,
+          "origH": 3600,
+          "dark": false
+        },
+        {
+          "id": "worldcup2026-2",
+          "file": "assets/prints/worldcup2026/2.webp",
+          "origW": 3600,
+          "origH": 3600,
+          "dark": false
+        },
+        {
+          "id": "worldcup2026-3",
+          "file": "assets/prints/worldcup2026/3.webp",
+          "origW": 3600,
+          "origH": 3600,
+          "dark": false
+        }
+      ]
+    },
+    {
+      "slug": "yamal",
+      "label": "Ямаль",
+      "items": [
+        {
+          "id": "yamal-1",
+          "file": "assets/prints/yamal/1.webp",
+          "origW": 2517,
+          "origH": 3000,
+          "dark": false
+        },
+        {
+          "id": "yamal-2",
+          "file": "assets/prints/yamal/2.webp",
+          "origW": 3500,
+          "origH": 3500,
+          "dark": false
+        }
+      ]
+    }
+  ]
+}

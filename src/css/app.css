@@ -1,0 +1,278 @@
+:root {
+  --bg: #f4f5f7;
+  --panel-bg: #ffffff;
+  --line: #e2e5ea;
+  --ink: #1c1c1e;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-ink: #ffffff;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--line);
+}
+.app-title { font-size: 18px; font-weight: 700; }
+.app-price { text-align: right; }
+.app-price__label { display: block; font-size: 11px; color: var(--muted); }
+.app-price__value { font-size: 20px; font-weight: 700; }
+
+/* Layout */
+.app-main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Preview */
+.views {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-height: 480px;
+}
+.views__thumbs { display: flex; flex-direction: column; gap: 10px; }
+.thumb {
+  width: 72px; height: 72px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fbfbfc center/contain no-repeat;
+  cursor: pointer;
+  padding: 0;
+}
+.thumb--active { border-color: var(--accent); }
+.thumb__label { display: block; text-align: center; font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+.views__stage { flex: 1; display: flex; align-items: center; justify-content: center; }
+.stage__canvas { position: relative; display: inline-block; line-height: 0; }
+.stage__img { max-width: 100%; max-height: 460px; object-fit: contain; }
+
+/* Print frame overlay (зона печати 40×50, clip за край) */
+.pf-frame {
+  position: absolute;
+  border: 1.5px dashed rgba(37, 99, 235, 0.7);
+  overflow: hidden;              /* «за рамку нельзя» — обрезка принта */
+  touch-action: none;
+}
+.pf-frame__cm {
+  position: absolute;
+  top: 2px; left: 2px;
+  font-size: 10px; line-height: 1;
+  background: rgba(37, 99, 235, 0.9); color: #fff;
+  padding: 2px 4px; border-radius: 3px;
+  pointer-events: none;
+}
+.pf-print {
+  position: absolute;
+  cursor: grab;
+  touch-action: none;
+}
+.pf-print:active { cursor: grabbing; }
+.pf-print__img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.pf-print__handle {
+  position: absolute;
+  right: -7px; bottom: -7px;
+  width: 14px; height: 14px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.pf-print__del {
+  position: absolute;
+  top: -9px; right: -9px;
+  width: 18px; height: 18px;
+  border: none; border-radius: 50%;
+  background: #ef4444; color: #fff;
+  font-size: 13px; line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Text layer */
+.pf-text__body {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Library panel */
+.lib__upload { margin-bottom: 10px; }
+.lib__upload-btn {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  background: #f5f8ff; color: var(--accent);
+  cursor: pointer; font-size: 13px;
+}
+.lib__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.lib__chip {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff; cursor: pointer;
+  font-size: 12px;
+}
+.lib__chip--active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.lib__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.lib__cell {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff; cursor: pointer;
+  padding: 4px; aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.lib__cell--dark { background: #2b2f36; }
+.lib__cell:hover { border-color: var(--accent); }
+.lib__thumb { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Panel */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  align-self: start;
+}
+.field { margin-bottom: 18px; }
+.field__label {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.03em;
+  margin-bottom: 8px;
+}
+
+/* Segmented buttons (тип, сторона, возраст, плотность) */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg__btn {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+.seg__btn--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Colors */
+.colors { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch {
+  position: relative;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch--active { outline: 2px solid var(--accent); outline-offset: 2px; }
+.swatch--pending { cursor: not-allowed; opacity: 0.85; }
+.swatch__badge {
+  position: absolute;
+  bottom: -6px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; line-height: 1;
+  background: #f59e0b; color: #fff;
+  padding: 2px 4px; border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Density labels */
+.seg__btn small { display: block; font-size: 10px; color: var(--muted); font-weight: 400; }
+.seg__btn--active small { color: rgba(255, 255, 255, 0.85); }
+
+/* Sizes table */
+.sizes-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sizes-table th, .sizes-table td {
+  border: 1px solid var(--line);
+  padding: 6px 8px; text-align: left;
+}
+.sizes-table th { background: #fafbfc; color: var(--muted); font-weight: 600; }
+
+.hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* Text add row (U2/U8) */
+.text-row { display: flex; gap: 8px; align-items: center; }
+.text-row__input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.text-row__color {
+  width: 38px; height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+  background: #fff;
+  cursor: pointer;
+}
+.text-row__add {
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent); color: var(--accent-ink);
+  cursor: pointer; font-size: 14px;
+}
+
+/* Order summary block */
+.order__product { font-size: 13px; color: var(--ink); margin-bottom: 10px; }
+.order__side { margin-bottom: 8px; }
+.order__side-name {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px;
+}
+.order__row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 2px 0; }
+.order__row-label { color: var(--muted); }
+.order__row-value { font-variant-numeric: tabular-nums; }
+.order__breakdown { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.order__total { font-weight: 700; font-size: 15px; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 6px; }
+.order__total .order__row-label { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .app-main { grid-template-columns: 1fr; }
+  .views { flex-direction: column; align-items: center; }
+  .views__thumbs { flex-direction: row; }
+}

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Конструктор футболок — демо</title>
+  <link rel="stylesheet" href="src/css/app.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">Конструктор футболок</div>
+    <div class="app-price">
+      <span class="app-price__label">Итого (предварительно)</span>
+      <span id="totalPrice" class="app-price__value">—</span>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- Превью: миниатюры сторон + крупный мокап -->
+    <section id="views" class="views" aria-label="Превью футболки"></section>
+
+    <!-- Панель параметров изделия -->
+    <aside id="panel" class="panel" aria-label="Параметры"></aside>
+  </main>
+
+  <script type="module" src="src/js/main.browser.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+{
+  "_note": "MOCK-конфиг фазы 0 конструктора футболок. Каталог собран из РЕАЛЬНЫХ мокапов клиента (Футболки.zip → assets/mockups-final/, 12 файлов 1200x1200, фон удалён → прозрачный PNG). 2 спины (base ivory, over black) восстановлены программной перекраской (C4) — ждут подтверждения клиента (U13). Зоны печати (zoneTemplate, box в долях 0..1) + физический размер в см (cm) — ПРИБЛИЖЁННЫЕ placeholder'ы, реальная калибровка придёт с U5. Точки цены по см² — только 10x10=300 (U1), заглушка ставка 3 руб/см2. Цены футболок — placeholder (U3). Плотности — образец из ТЗ (U4).",
+  "version": "0.1.0-mock",
+  "prices": {
+    "form": {
+      "base": { "180": 600 },
+      "oversize": { "200": 800, "240": 1000 },
+      "_note_form": "U3 ОТВЕТ (прайс клиента 22.07): цена футболки = ТИП × ПЛОТНОСТЬ. Базовая 180=600, Оверсайз 200=800 / 240=1000. Возраст на базовую цену НЕ влияет (влияет только на размер рамки: детская 30×40). ⚠️ Детских цен в прайсе НЕТ — уточнить у клиента."
+    },
+    "print": {
+      "method": "dtf",
+      "rule": "min-containing",
+      "methods": {
+        "dtf": {
+          "label": "DTF",
+          "tiers": [
+            { "wCm": 10, "hCm": 10, "price": 400 },
+            { "wCm": 15, "hCm": 15, "price": 550 },
+            { "wCm": 20, "hCm": 20, "price": 750 },
+            { "wCm": 30, "hCm": 30, "price": 850 },
+            { "wCm": 40, "hCm": 40, "price": 1050 },
+            { "wCm": 10, "hCm": 15, "price": 500 },
+            { "wCm": 15, "hCm": 20, "price": 700 },
+            { "wCm": 20, "hCm": 30, "price": 800 },
+            { "wCm": 30, "hCm": 40, "price": 1000 }
+          ]
+        },
+        "film": {
+          "label": "Плёнкой",
+          "tiers": [
+            { "wCm": 10, "hCm": 15, "price": 400 },
+            { "wCm": 15, "hCm": 20, "price": 500 },
+            { "wCm": 20, "hCm": 30, "price": 600 },
+            { "wCm": 30, "hCm": 40, "price": 700 }
+          ]
+        }
+      },
+      "_note_print": "U1 ОТВЕТ (прайс + голос 22.07): СТУПЕНЧАТАЯ цена по размеру (не линейная). Цена = МИНИМАЛЬНЫЙ тариф, чья рамка (wCm×hCm) вмещает принт (maxW≥w И maxH≥h). Цена «замирает» внутри бракета, перещёлкивается на границе (10×10=400 → 11×11 уже в бракете 15×15=550 и т.д. — как на i-maika.ru). ДВА метода нанесения: DTF и Плёнкой (своя сетка у каждого) — добавить выбор метода в UI. ⚠️ Пробел: рамка макс 40×50, но макс тариф нанесения 40×40 (DTF) / 30×40 — принт крупнее не покрыт прайсом, уточнить."
+    },
+    "text": {
+      "standalone": 500,
+      "combinedDiscountPct": 50,
+      "_note_text": "U2 ОТВЕТ (голос 22.07): при добавлении текста К УЖЕ ЗАГРУЖЕННОМУ принту/лого — на текст скидка 50% (лого всегда по полной себестоимости). Скидку НЕ показывать явно. Вынести ОТДЕЛЬНОЙ регулируемой опцией в админку (менять %/убирать/отключать). standalone (текст без принта) — прежний placeholder, уточнить."
+    },
+    "baseFee": 0,
+    "discounts": {}
+  },
+  "canvas": {
+    "width": 1200,
+    "height": 1200,
+    "displayWidth": 480
+  },
+  "sides": [
+    { "id": "front", "label": "Грудь" },
+    { "id": "back", "label": "Спина" }
+  ],
+  "_sides_note": "C12: грудь и спина раздельно, цена суммируется. Каждая сторона — свой набор принтов и своя рамка печати.",
+  "printSize": {
+    "minCm": { "w": 5, "h": 5 },
+    "maxCm": { "w": 40, "h": 50 }
+  },
+  "_printSize_note": "C10: клэмп размера принта 5x5 min .. 40x50 max. См считаются из пропорций картинки и калибровки рамки (U5 отвечен, см. frame).",
+  "frame": {
+    "byAge": {
+      "adult": { "wCm": 40, "hCm": 50 },
+      "child": { "wCm": 30, "hCm": 40 }
+    },
+    "_note_frame": "U5+U10 ОТВЕТ (голос 22.07): ОДНА рамка на все типы и обе стороны (грудь=спина). Взрослая 40×50, детская 30×40. Рамка ставится ПО ЦЕНТРУ изделия. За рамку принт вынести нельзя, картинку больше рамки вставить нельзя. Размер не зависит от Базовая/Оверсайз — только от возраста."
+  },
+  "upload": {
+    "maxUploadMB": 20,
+    "formats": ["png", "jpeg", "jpg", "svg", "webp"],
+    "compressOverMB": 2,
+    "maxDimension": 2000,
+    "quality": 0.85
+  },
+  "_upload_note": "C19/U6 ОТВЕТ (голос 22.07): PNG/JPEG/SVG/WebP, макс 20 МБ. WebP оставляем ВКЛЮЧЁННЫМ (клиент: все картинки переводятся в web, отключать НЕ надо). Мокапы клиент грузит как JPG или PNG — без разницы. Тяжёлые фото сжимаются в web-формат.",
+  "densities": [
+    { "g": 180, "label": "180 г/м² — базовая", "type": "base" },
+    { "g": 200, "label": "200 г/м² — оверсайз", "type": "oversize" },
+    { "g": 240, "label": "240 г/м² — двухнитка, оверсайз", "type": "oversize" }
+  ],
+  "_densities_note": "U4 ОТВЕТ (прайс + голос 22.07): реальные плотности 180 (базовая) / 200 / 240 (двухнитка, оверсайз). Каждая плотность привязана к типу и имеет комментарий. Список + комментарии ДОЛЖНЫ редактироваться из админки (клиент будет часто менять футболки). Выбор кнопкой/списком, показывать цифру + комментарий.",
+  "colors": [
+    { "id": "white", "name": "Белый", "hex": "#f4f5f7", "mode": "photo" },
+    { "id": "black", "name": "Чёрный", "hex": "#1c1c1e", "mode": "photo" },
+    { "id": "ivory", "name": "Слоновая кость", "hex": "#e9dfc9", "mode": "photo", "pending": true }
+  ],
+  "_colors_note": "C3/C4/U13 ОТВЕТ (голос 22.07): СТАРТ = белый + чёрный. Сл.кость (ivory) остаётся pending:true — клиент подтвердил, что качество сл.кости «не наравне с белым и чёрным», просит по возможности довести все мокапы до хорошего вида (через ИИ/дизайнера), фото покрупнее не пришлёт (это всё, что есть). Прочие цвета — из админки перекраской (mode: recolor). ВАРЁНКА (tie-dye) — ОТЛОЖЕНА (голос 22.07): клиент ещё изучает рынок и не выбрал поставщика; реализовать позже как полупрозрачный overlay поверх мокапа (mode: tiedye); оставить возможность самим добавлять мокапы/цвета/варёнки через админку (фильтр: тип формы + плотность + подпись «варёнка»).",
+  "fonts": [
+    { "id": "russoone", "name": "Russo One", "file": "assets/fonts/RussoOne-Regular.ttf" },
+    { "id": "oswald", "name": "Oswald", "file": "assets/fonts/Oswald-Regular.ttf" },
+    { "id": "prostoone", "name": "Prosto One", "file": "assets/fonts/ProstoOne-Regular.ttf" }
+  ],
+  "_fonts_note": "C13: шрифты с кириллицей (образец из jetron). Итоговый список — позже. Цвет текста — RGB-пикер (U8, дефолт).",
+  "zoneTemplate": [
+    {
+      "key": "chest",
+      "label": "Печать на груди",
+      "view": "front",
+      "type": "print",
+      "box": { "x": 0.30, "y": 0.26, "w": 0.40, "h": 0.34 },
+      "cm": { "w": 40, "h": 50 }
+    },
+    {
+      "key": "backPrint",
+      "label": "Печать на спине",
+      "view": "back",
+      "type": "print",
+      "box": { "x": 0.26, "y": 0.20, "w": 0.48, "h": 0.50 },
+      "cm": { "w": 40, "h": 50 }
+    }
+  ],
+  "_zones_note": "C8: фиксированная рамка + clip (за рамкой принт исчезает). box — доли 0..1 canvas (PLACEHOLDER калибровки). cm обеих зон = 40×50 (взрослая, U5/U10 отвечены — реальный размер берётся из frame.byAge по возрасту: adult 40×50 / child 30×40, НЕ зависит от типа). Грудь и спина — одинаковая рамка.",
+  "layers": {
+    "maxPrintsPerSide": 2,
+    "adminAdjustable": true,
+    "_note_layers": "C15 ОТВЕТ (голос 22.07): максимум 2 принта на сторону (2 грудь + 2 спина). Клиент: 5 много, 2 хватит наперёд, максимум 3. Сделать регулируемым из админки."
+  },
+  "textColor": {
+    "mode": "rgb",
+    "_note_textcolor": "U8 ОТВЕТ (голос 22.07): цвет ТЕКСТА — полный RGB-пикер (любой цвет), в отличие от цветов формы (ограниченный набор)."
+  },
+  "forms": [
+    {
+      "id": "base-white", "type": "base", "typeLabel": "Базовая", "colorId": "white", "color": "Белый", "colorHex": "#f4f5f7",
+      "images": { "front": "assets/mockups-final/base_white_front.png", "back": "assets/mockups-final/base_white_back.png" }
+    },
+    {
+      "id": "base-black", "type": "base", "typeLabel": "Базовая", "colorId": "black", "color": "Чёрный", "colorHex": "#1c1c1e",
+      "images": { "front": "assets/mockups-final/base_black_front.png", "back": "assets/mockups-final/base_black_back.png" }
+    },
+    {
+      "id": "base-ivory", "type": "base", "typeLabel": "Базовая", "colorId": "ivory", "color": "Слоновая кость", "colorHex": "#e9dfc9", "pending": true,
+      "images": { "front": "assets/mockups-final/base_ivory_front.png", "back": "assets/mockups-final/base_ivory_back.png" },
+      "_back_note": "Спина восстановлена перекраской из base_white_back (U13). pending:true — цвет ждёт подтверждения клиента."
+    },
+    {
+      "id": "over-white", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "white", "color": "Белый", "colorHex": "#f4f5f7",
+      "images": { "front": "assets/mockups-final/over_white_front.png", "back": "assets/mockups-final/over_white_back.png" }
+    },
+    {
+      "id": "over-black", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "black", "color": "Чёрный", "colorHex": "#1c1c1e",
+      "images": { "front": "assets/mockups-final/over_black_front.png", "back": "assets/mockups-final/over_black_back.png" },
+      "_back_note": "Спина восстановлена перекраской из over_white_back (U13)."
+    },
+    {
+      "id": "over-ivory", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "ivory", "color": "Слоновая кость", "colorHex": "#e9dfc9", "pending": true,
+      "images": { "front": "assets/mockups-final/over_ivory_front.png", "back": "assets/mockups-final/over_ivory_back.png" },
+      "_note": "pending:true — сл.кость ждёт подтверждения клиента (U13)."
+    }
+  ],
+  "sizes": {
+    "child": { "title": "Детские размеры", "columns": ["Рост, см", "Возраст, лет"], "rows": [["122-128", "6-7"], ["134-140", "8-10"], ["146-152", "10-12"]] },
+    "adult": { "title": "Взрослые размеры", "columns": ["Российский размер"], "rows": [["44 (XS)"], ["46 (S)"], ["48 (M)"], ["50 (L)"], ["52 (XL)"], ["54 (2XL)"]] }
+  },
+  "_sizes_note": "C5: сетка Взрослая/Детская (образец). На боевом — из админки WooCommerce (U11).",
+  "library": {
+    "themes": [],
+    "_note_library": "C17: фильтр по темам (Месси/Роналду/Мбаппе/ЧМ-2026/Аргентина). Картинки + векторизация JPEG->PNG — от клиента (C18)."
+  }
+}
