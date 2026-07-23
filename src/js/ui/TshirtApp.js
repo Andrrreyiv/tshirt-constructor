@@ -22,7 +22,7 @@ export class TshirtApp {
 
     this.state = {
       type: 'base',      // base | oversize
-      colorId: 'white',  // white | black (ivory — pending, не выбирается)
+      colorId: 'white',  // white | black | ivory (ivory подтверждена клиентом 23.07)
       side: 'front',     // front | back
       age: 'adult',      // adult | child
       densityG: (config.densities?.[0]?.g) ?? null,
@@ -312,7 +312,7 @@ export class TshirtApp {
       row.append(sw);
     }
     field.append(row);
-    field.append(el('div', 'hint', 'Старт: белый и чёрный. Прочие цвета — из админки (перекраска).'));
+    field.append(el('div', 'hint', 'Старт: белый, чёрный и слоновая кость. Прочие цвета — из админки (перекраска).'));
     return field;
   }
 
