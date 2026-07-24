@@ -563,7 +563,10 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   }
   #stage { padding: 26px 16px 22px; border-radius: var(--r-lg); }
   .price-box { position: static; }
-  .stage__img { width: 300px; }
+  /* Превью подстраивается под ширину, чтобы обе стороны остались В РЯД
+     (в ландшафте телефона высоты мало — столбик заставлял бы скроллить).
+     160px — обвязка: паддинги #app + #stage + двух .canvas-wrap + зазор. */
+  .stage__img { width: min(300px, calc((100vw - 160px) / 2)); }
 }
 @media (max-width: 560px) {
   #app {
@@ -583,6 +586,7 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .cta { min-height: 52px; }
   .lib__chip { min-height: 44px; padding: 6px 14px; }
   .text-row__add { min-height: 46px; }
+  .text-row__input { min-height: 46px; }
   .text-row__color { width: 46px; height: 46px; }
   .sizes-toggle { min-height: 44px; padding: 10px 0; }
   .lib__upload-btn { min-height: 52px; }
