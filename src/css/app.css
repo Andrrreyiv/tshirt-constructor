@@ -109,7 +109,13 @@ body {
   position: relative; z-index: 1;
   width: 100%;
 }
-.canvas-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+/* Обе стороны держатся в ОДНОМ РЯДУ и тянутся по месту: фиксированные пиксели
+   не влезали вдвоём ни в колонку сцены на десктопе, ни в ландшафт телефона.
+   340px — потолок, чтобы на широком экране мокап не раздувало. */
+.canvas-col {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  flex: 1 1 200px; min-width: 0; max-width: 340px;
+}
 .canvas-label {
   font-family: var(--font-display);
   font-weight: 600; font-size: 13px; color: var(--stage-label);
@@ -135,10 +141,13 @@ body {
 }
 .canvas-col.is-active .canvas-label { color: var(--brand-strong); }
 
-.stage__canvas { position: relative; display: block; line-height: 0; }
+.canvas-wrap { width: 100%; }
+/* Рамка печати позиционируется в ПРОЦЕНТАХ от этого блока (PrintFrame.cssBox),
+   поэтому она корректно масштабируется вместе с текучим мокапом. */
+.stage__canvas { position: relative; display: block; line-height: 0; width: 100%; }
 .stage__img {
   display: block;
-  width: 340px; max-width: 100%; height: auto;
+  width: 100%; height: auto;
   border-radius: 6px;
 }
 
@@ -563,10 +572,6 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   }
   #stage { padding: 26px 16px 22px; border-radius: var(--r-lg); }
   .price-box { position: static; }
-  /* Превью подстраивается под ширину, чтобы обе стороны остались В РЯД
-     (в ландшафте телефона высоты мало — столбик заставлял бы скроллить).
-     160px — обвязка: паддинги #app + #stage + двух .canvas-wrap + зазор. */
-  .stage__img { width: min(300px, calc((100vw - 160px) / 2)); }
 }
 @media (max-width: 560px) {
   #app {
@@ -576,7 +581,9 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   #stage { padding: 18px 6px 16px; }
   .views { gap: 14px; }
   .canvas-wrap { padding: 6px; }
-  .stage__img { width: min(76vw, 320px); }
+  /* Портрет телефона: одна сторона на строку и крупно — по узкому превью
+     тяжело попадать пальцем в принт. */
+  .canvas-col { flex-basis: 100%; max-width: 100%; }
   .panel > section { padding: 16px; }
   .price-total { font-size: 27px; }
   .model-card { width: 96px; }
