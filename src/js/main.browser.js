@@ -30,6 +30,7 @@ async function boot() {
     config,
     viewsEl: document.getElementById('views'),
     panelEl: document.getElementById('panel'),
+    colorEl: document.getElementById('colorpick'),
     manifest
   });
   app.start();

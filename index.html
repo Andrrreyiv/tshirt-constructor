@@ -4,25 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Конструктор футболок — демо</title>
-  <link rel="stylesheet" href="src/css/app.css" />
+  <link rel="stylesheet" href="src/css/app.css?v=20260724a" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="app-title">Конструктор футболок</div>
-    <div class="app-price">
-      <span class="app-price__label">Итого (предварительно)</span>
-      <span id="totalPrice" class="app-price__value">—</span>
-    </div>
-  </header>
+  <main id="app">
+    <!-- Сцена: обе стороны разом + выбор цвета и фасона под макетом -->
+    <section id="stage">
+      <div id="views" class="views" aria-label="Превью футболки"></div>
+      <p class="stage-hint">
+        Кликните по стороне, чтобы выбрать её для нанесения. Принт тяните мышью, угол — размер.
+      </p>
+      <div id="colorpick" class="colorpick" aria-label="Цвет и фасон"></div>
+    </section>
 
-  <main class="app-main">
-    <!-- Превью: миниатюры сторон + крупный мокап -->
-    <section id="views" class="views" aria-label="Превью футболки"></section>
-
-    <!-- Панель параметров изделия -->
+    <!-- Панель параметров + итог заказа -->
     <aside id="panel" class="panel" aria-label="Параметры"></aside>
   </main>
 
-  <script type="module" src="src/js/main.browser.js"></script>
+  <script type="module" src="src/js/main.browser.js?v=20260724a"></script>
 </body>
 </html>
