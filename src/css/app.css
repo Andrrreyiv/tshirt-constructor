@@ -578,4 +578,7 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .model-card { width: 96px; }
   .seg__btn { min-height: 46px; }
   .cta { min-height: 52px; }
+  /* Чипы категорий и кнопка текста — под палец (минимум 44px) */
+  .lib__chip { min-height: 44px; padding: 6px 14px; }
+  .text-row__add { min-height: 46px; }
 }
