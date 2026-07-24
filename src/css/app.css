@@ -375,6 +375,8 @@ body {
 .sizes-toggle .chev { color: var(--line-strong); font-size: 11px; transition: transform .2s var(--ease); }
 .sizes-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .sizes-body[hidden] { display: none; }
+/* Таблица не должна распирать панель на узких экранах — скроллим её саму. */
+.sizes-body { overflow-x: auto; }
 .sizes-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .sizes-table th, .sizes-table td {
   border-bottom: 1px solid var(--line);
@@ -574,11 +576,16 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .stage__img { width: min(76vw, 320px); }
   .panel > section { padding: 16px; }
   .price-total { font-size: 27px; }
-  .swatch { width: 40px; height: 40px; }
   .model-card { width: 96px; }
+  /* Тач-цели: минимум 44px по обеим осям (iOS HIG). */
+  .swatch { width: 44px; height: 44px; }
   .seg__btn { min-height: 46px; }
   .cta { min-height: 52px; }
-  /* Чипы категорий и кнопка текста — под палец (минимум 44px) */
   .lib__chip { min-height: 44px; padding: 6px 14px; }
   .text-row__add { min-height: 46px; }
+  .text-row__color { width: 46px; height: 46px; }
+  .sizes-toggle { min-height: 44px; padding: 10px 0; }
+  .lib__upload-btn { min-height: 52px; }
+  .pf-print__del { width: 26px; height: 26px; font-size: 16px; top: -13px; right: -13px; }
+  .pf-print__handle { width: 20px; height: 20px; right: -10px; bottom: -10px; }
 }
