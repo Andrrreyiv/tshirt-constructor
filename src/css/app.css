@@ -580,7 +580,12 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .panel > section { padding: 16px; }
   .price-total { font-size: 27px; }
   .model-card { width: 96px; }
-  /* Тач-цели: минимум 44px по обеим осям (iOS HIG). */
+}
+
+/* ── Тач-цели ───────────────────────────────────────────────────────
+   Привязаны к типу указателя, а не к ширине: планшет шире 560px, но
+   палец там такой же. Минимум 44px по обеим осям (iOS HIG). */
+@media (pointer: coarse) {
   .swatch { width: 44px; height: 44px; }
   .seg__btn { min-height: 46px; }
   .cta { min-height: 52px; }
@@ -590,6 +595,8 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .text-row__color { width: 46px; height: 46px; }
   .sizes-toggle { min-height: 44px; padding: 10px 0; }
   .lib__upload-btn { min-height: 52px; }
-  .pf-print__del { width: 26px; height: 26px; font-size: 16px; top: -13px; right: -13px; }
-  .pf-print__handle { width: 20px; height: 20px; right: -10px; bottom: -10px; }
+  .lib__cell { min-height: 56px; }
+  /* Крестик и ручка принта — крупнее, их жмут прямо на макете. */
+  .pf-print__del { width: 28px; height: 28px; font-size: 17px; top: -14px; right: -14px; }
+  .pf-print__handle { width: 22px; height: 22px; right: -11px; bottom: -11px; }
 }
