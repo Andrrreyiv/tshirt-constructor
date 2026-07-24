@@ -603,7 +603,11 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .sizes-toggle { min-height: 44px; padding: 10px 0; }
   .lib__upload-btn { min-height: 52px; }
   .lib__cell { min-height: 56px; }
-  /* Крестик и ручка принта — крупнее, их жмут прямо на макете. */
+  /* Крестик и ручка принта живут на самом макете: раздувать их визуально нельзя —
+     закроют принт. Поэтому растим невидимую зону нажатия до 44px, а значок
+     оставляем компактным. */
   .pf-print__del { width: 28px; height: 28px; font-size: 17px; top: -14px; right: -14px; }
+  .pf-print__del::before { content: ''; position: absolute; inset: -8px; border-radius: 50%; }
   .pf-print__handle { width: 22px; height: 22px; right: -11px; bottom: -11px; }
+  .pf-print__handle::before { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
 }
