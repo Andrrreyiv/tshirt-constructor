@@ -34,7 +34,8 @@ export class LibraryPanel {
 
     // Загрузка своего файла
     const up = mk('div', 'lib__upload');
-    const upBtn = mk('button', 'lib__upload-btn', '＋ Загрузить свой принт');
+    // Значок плюса рисует CSS (.lib__upload-btn::before) — в тексте его дублировать не нужно.
+    const upBtn = mk('button', 'lib__upload-btn', 'Загрузить свой принт');
     const input = mk('input', 'lib__file');
     input.type = 'file';
     input.accept = (this.config.upload?.formats ?? ['png', 'jpeg', 'svg', 'webp'])
