@@ -3,6 +3,8 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
+import { fitBoxInFrame } from './BoxFit.js';
+
 export class PrintEditor {
   /**
    * @param {{ frame, scaler, layers, getSide, getMethod, onChange }} opts
@@ -183,17 +185,24 @@ export class PrintEditor {
       const move = (ev) => {
         const dw = (ev.clientX - startX) / r.width;
         const dh = (ev.clientY - startY) / r.height;
-        let fw = clamp(w0 + dw, 0.02, 1 - d.fx);
-        let fh = clamp(h0 + dh, 0.02, 1 - d.fy);
+        // Потолок — САМА зона (1), а не остаток справа: иначе центрированный принт нельзя
+        // растянуть до краёв (клиент 28.07: «не могу к краям раздвинуть», выходило 37×50 из 40×50).
+        let fw = clamp(w0 + dw, 0.02, 1);
+        let fh = clamp(h0 + dh, 0.02, 1);
         if (!isText) {
           // Клэмп принта по см (5×5..40×50): доли → см → клэмп → обратно в доли.
           const cm = this.scaler.clampCm(this.scaler.sizeCm(fw, fh));
           fw = cm.w / this.scaler.zone.cm.w;
           fh = cm.h / this.scaler.zone.cm.h;
         }
-        d.fw = fw; d.fh = fh;
-        wrap(handle).style.width = pct(fw);
-        wrap(handle).style.height = pct(fh);
+        // Упёрлись в правый/нижний край — сдвигаем принт внутрь, а не режем размер.
+        const box = fitBoxInFrame({ fx: d.fx, fy: d.fy, fw, fh });
+        d.fx = box.fx; d.fy = box.fy; d.fw = box.fw; d.fh = box.fh;
+        const w = wrap(handle);
+        w.style.left = pct(box.fx);
+        w.style.top = pct(box.fy);
+        w.style.width = pct(box.fw);
+        w.style.height = pct(box.fh);
         if (isText) { if (onResize) onResize(); } else { this._showCm(d); }
       };
       const up = () => {
