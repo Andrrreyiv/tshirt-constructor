@@ -339,9 +339,12 @@ export class TshirtApp {
   libraryField() {
     const field = el('div', 'field');
     const libEl = el('div', 'lib');
-    this.library.render(libEl, {
-      onPick: (src) => this.addPrint(src),
-      onUpload: (file) => this.uploadPrint(file),
+    // Клиент 28.07: библиотека вынесена в отдельное окно, в панели только кнопка вызова.
+    this.library.renderTrigger(libEl, {
+      onOpen: () => this.library.openModal({
+        onPick: (src) => this.addPrint(src),
+        onUpload: (file) => this.uploadPrint(file),
+      }),
     });
     field.append(libEl);
     field.append(el('div', 'hint',
