@@ -31,3 +31,19 @@ test('за левый и верхний край не выпускаем', () =>
   assert.deepEqual(fitBoxInFrame({ fx: -0.2, fy: -0.1, fw: 0.4, fh: 0.4 }),
     { fx: 0, fy: 0, fw: 0.4, fh: 0.4 });
 });
+
+import { printBoxOnMockup } from '../src/js/tshirt/BoxFit.js';
+
+// Превью стороны рисуется поверх мокапа целиком, а координаты принта хранятся в долях РАМКИ.
+// Без пересчёта принт в превью уехал бы в левый верхний угол футболки.
+test('принт пересчитывается из долей рамки в доли мокапа', () => {
+  const frame = { x: 0.26, y: 0.20, w: 0.48, h: 0.50 };
+  const r = printBoxOnMockup(frame, { fx: 0, fy: 0, fw: 1, fh: 1 });
+  assert.deepEqual(r, { x: 0.26, y: 0.20, w: 0.48, h: 0.50 });
+});
+
+test('принт в центре рамки остаётся в центре и в превью', () => {
+  const frame = { x: 0.2, y: 0.2, w: 0.6, h: 0.6 };
+  const r = printBoxOnMockup(frame, { fx: 0.25, fy: 0.25, fw: 0.5, fh: 0.5 });
+  assert.deepEqual(r, { x: 0.35, y: 0.35, w: 0.3, h: 0.3 });
+});

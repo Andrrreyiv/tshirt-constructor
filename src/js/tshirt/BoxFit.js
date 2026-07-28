@@ -18,3 +18,15 @@ export function fitBoxInFrame({ fx, fy, fw, fh }) {
 function clamp(v, lo, hi) {
   return Math.min(Math.max(v, lo), hi);
 }
+
+// Координаты принта относительно МОКАПА (а не рамки печати) — для маленьких превью сторон.
+// Клиент 28.07 просил превью «без рамок, по тем размерам, что на самой футболке», поэтому
+// рамку в превью не рисуем, а принты пересчитываем в доли всего изображения.
+export function printBoxOnMockup(frameBox, print) {
+  return {
+    x: frameBox.x + print.fx * frameBox.w,
+    y: frameBox.y + print.fy * frameBox.h,
+    w: print.fw * frameBox.w,
+    h: print.fh * frameBox.h
+  };
+}

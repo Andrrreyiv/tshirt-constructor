@@ -1,5 +1,5 @@
 // TshirtApp — оркестратор редактора (адаптация jetron UniformApp).
-// Раскладка v2 (единая с конструктором формы): сцена показывает ОБЕ стороны разом,
+// Раскладка v3 (макет клиента 28.07): сцена показывает ОДНУ активную сторону крупно,
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
@@ -13,6 +13,7 @@ import { buildOrder } from '../tshirt/OrderBuilder.js';
 import { QualityHint } from '../tshirt/QualityHint.js';
 import { Recolor } from '../tshirt/Recolor.js';
 import { LibraryPanel } from '../tshirt/LibraryPanel.js';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -76,7 +77,9 @@ export class TshirtApp {
     this.updatePrice();
   }
 
-  // ── Сцена: обе стороны разом ─────────────────────────────────────────────
+  // ── Сцена: ТОЛЬКО активная сторона, крупно (макет клиента 28.07) ─────────
+  // Раньше показывали обе стороны рядом одинакового размера. Клиент: «слева одна крупная
+  // футболка, справа маленькие превьюшки». Превью переехали в панель — sidePreviewField().
   renderViews() {
     const form = this.currentForm();
     this.viewsEl.innerHTML = '';
@@ -84,6 +87,7 @@ export class TshirtApp {
 
     for (const side of this.config.sides) {
       const isActive = side.id === this.state.side;
+      if (!isActive) continue; // неактивная сторона живёт только в превью панели
       const col = el('div', 'canvas-col' + (isActive ? ' is-active' : ''));
       col.append(el('div', 'canvas-label', side.label));
 
@@ -217,6 +221,8 @@ export class TshirtApp {
       Object.entries(c.prices.print.methods).map(([id, m]) => ({ value: id, label: m.label })),
       this.state.printMethod, v => { this.state.printMethod = v; this.render(); }));
     printSec.append(this.libraryField());
+    // Превью сторон + переключатель: в макете клиента они идут сразу под выбором принта.
+    printSec.append(this.sidePreviewField());
     this.panelEl.append(printSec);
 
     // Надпись
@@ -226,6 +232,69 @@ export class TshirtApp {
 
     // Итог заказа + CTA
     this.panelEl.append(this.orderField());
+  }
+
+/**
+   * Превью обеих сторон + переключатель «Грудь / Спина» (макет клиента 28.07).
+   * Превью рисуются БЕЗ рамок зоны и БЕЗ подписи размера — только изделие и нанесения,
+   * «по тем размерам, которые отображаются на самой футболке».
+   */
+  sidePreviewField() {
+    const field = el('div', 'field');
+    const form = this.currentForm();
+
+    const row = el('div', 'sideprev');
+    for (const side of this.config.sides) {
+      const isActive = side.id === this.state.side;
+      const cell = el('button', 'sideprev__cell' + (isActive ? ' is-active' : ''));
+      cell.type = 'button';
+      cell.setAttribute('aria-pressed', String(isActive));
+      cell.setAttribute('aria-label', 'Показать сторону: ' + side.label);
+
+      const box = el('div', 'sideprev__box');
+      const img = el('img', 'sideprev__img');
+      img.src = form?.images?.[side.id] ?? '';
+      img.alt = side.label;
+      img.loading = 'lazy';
+      box.append(img);
+
+      // Нанесения: координаты хранятся в долях РАМКИ, пересчитываем в доли мокапа.
+      const zone = this.config.zoneTemplate.find(z => z.view === side.id);
+      if (zone) {
+        for (const d of this.layers.list(side.id)) {
+          const b = printBoxOnMockup(zone.box, d);
+          const item = el('div', 'sideprev__item');
+          Object.assign(item.style, {
+            left: b.x * 100 + '%', top: b.y * 100 + '%',
+            width: b.w * 100 + '%', height: b.h * 100 + '%',
+          });
+          if ((d.kind ?? 'print') === 'text') {
+            const t = el('div', 'sideprev__text', d.text);
+            t.style.color = d.color || '#111';
+            item.append(t);
+          } else {
+            const pi = el('img', 'sideprev__print');
+            pi.src = d.src;
+            pi.alt = '';
+            item.append(pi);
+          }
+          box.append(item);
+        }
+      }
+
+      cell.append(box);
+      cell.addEventListener('click', () => {
+        if (this.state.side !== side.id) { this.state.side = side.id; this.render(); }
+      });
+      row.append(cell);
+    }
+    field.append(row);
+
+    // Переключатель под превью — дублирует выбор, как в макете.
+    field.append(this.segField('Сторона нанесения',
+      this.config.sides.map(s => ({ value: s.id, label: s.label })),
+      this.state.side, v => { this.state.side = v; this.render(); }));
+    return field;
   }
 
   /** Собрать сериализуемый итог заказа из текущего состояния (единый источник цены). */
