@@ -144,7 +144,16 @@ body {
 .canvas-wrap { width: 100%; }
 /* Рамка печати позиционируется в ПРОЦЕНТАХ от этого блока (PrintFrame.cssBox),
    поэтому она корректно масштабируется вместе с текучим мокапом. */
-.stage__canvas { position: relative; display: block; line-height: 0; width: 100%; }
+/* Клиент 28.07: «сделать чуть-чуть на сером фоне, как у меня в дизайне».
+   Подложка задаётся ЗДЕСЬ, а не впекается в файлы: мокапы у нас с прозрачным фоном, поэтому
+   один и тот же серый ложится под все цвета и оба фасона (у исходников фон был разный —
+   у базовых белый, у оверсайза серый). Лёгкий градиент повторяет студийный фон с фото. */
+.stage__canvas {
+  position: relative; display: block; line-height: 0; width: 100%;
+  background: linear-gradient(180deg, #8f8e8c 0%, #9d9c9a 6%, #9d9c9a 94%, #8f8e8c 100%);
+  border-radius: 6px;
+  overflow: hidden;
+}
 .stage__img {
   display: block;
   width: 100%; height: auto;
