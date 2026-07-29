@@ -85,18 +85,37 @@ function jetron_ts_safe_name($name, $allowed) {
     return $base . '.' . $ext;
 }
 
-/** Загрузка файла в tshirt/assets/<sub>/. Возвращает относительный путь или массив с ошибкой. */
-function jetron_ts_upload($field, $sub, $allowed, $max_mb = 8, $must_be_image = true) {
-    if (empty($_FILES[$field]['name']) || !is_uploaded_file($_FILES[$field]['tmp_name'])) {
-        return null;
+/** Файлы поля в едином виде. Поле может быть одиночным (name="x") и множественным (name="x[]"). */
+function jetron_ts_field_files($field) {
+    if (empty($_FILES[$field]['name'])) {
+        return array();
     }
-    if ($_FILES[$field]['size'] > $max_mb * 1024 * 1024) {
+    $f = $_FILES[$field];
+    if (!is_array($f['name'])) {
+        return array(array('name' => $f['name'], 'tmp_name' => $f['tmp_name'], 'size' => $f['size']));
+    }
+    $out = array();
+    foreach ($f['name'] as $i => $name) {
+        if ($name === '') {
+            continue;
+        }
+        $out[] = array('name' => $name, 'tmp_name' => $f['tmp_name'][$i], 'size' => $f['size'][$i]);
+    }
+    return $out;
+}
+
+/** Проверка и перенос одного файла в tshirt/assets/<sub>/. Путь или массив с ошибкой. */
+function jetron_ts_store_file($file, $sub, $allowed, $max_mb = 8, $must_be_image = true) {
+    if (!is_uploaded_file($file['tmp_name'])) {
+        return array('error' => 'Файл не дошёл до сервера, попробуйте ещё раз.');
+    }
+    if ($file['size'] > $max_mb * 1024 * 1024) {
         return array('error' => 'Файл больше ' . $max_mb . ' МБ. Сожмите его и попробуйте снова.');
     }
-    if ($must_be_image && !@getimagesize($_FILES[$field]['tmp_name'])) {
+    if ($must_be_image && !@getimagesize($file['tmp_name'])) {
         return array('error' => 'Это не изображение. Нужен PNG, JPG или WebP.');
     }
-    $name = jetron_ts_safe_name($_FILES[$field]['name'], $allowed);
+    $name = jetron_ts_safe_name($file['name'], $allowed);
     if ($name === null) {
         return array('error' => 'Формат не подходит. Разрешены: ' . implode(', ', $allowed) . '.');
     }
@@ -108,10 +127,19 @@ function jetron_ts_upload($field, $sub, $allowed, $max_mb = 8, $must_be_image = 
         $ext  = pathinfo($name, PATHINFO_EXTENSION);
         $name = pathinfo($name, PATHINFO_FILENAME) . '-' . substr(md5(microtime()), 0, 4) . '.' . $ext;
     }
-    if (!move_uploaded_file($_FILES[$field]['tmp_name'], $dir . $name)) {
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) {
         return array('error' => 'Не удалось сохранить файл. Проверьте права на папку.');
     }
     return 'assets/' . $sub . '/' . $name;
+}
+
+/** Загрузка одиночного файла: путь, null (файла нет) или массив с ошибкой. */
+function jetron_ts_upload($field, $sub, $allowed, $max_mb = 8, $must_be_image = true) {
+    $files = jetron_ts_field_files($field);
+    if (!count($files)) {
+        return null;
+    }
+    return jetron_ts_store_file($files[0], $sub, $allowed, $max_mb, $must_be_image);
 }
 
 /** Пункт меню в админке. */
@@ -254,34 +282,99 @@ function jetron_ts_handle() {
             : array('ok', 'Категория удалена. Файлы картинок остались на сервере.');
     }
 
-    if ($action === 'print_add') {
-        $slug = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
-        $file = jetron_ts_upload('print_file', 'prints/' . $slug, array('png', 'jpg', 'jpeg', 'webp'));
-        if (is_array($file)) {
-            return array('error', $file['error']);
+    if ($action === 'cat_rename') {
+        $slug  = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $label = sanitize_text_field(wp_unslash($_POST['cat_label'] ?? ''));
+        if ($label === '') {
+            return array('error', 'Введите новое название категории.');
         }
-        if ($file === null) {
-            return array('error', 'Выберите картинку принта.');
-        }
+        // Меняем только подпись: slug — это папка с картинками, её трогать нельзя.
         $cats  = jetron_ts_categories();
         $found = false;
         foreach ($cats as &$c) {
             if (($c['slug'] ?? '') === $slug) {
-                $c['items'][] = array(
-                    'id'   => $slug . '-' . substr(md5($file . microtime()), 0, 6),
-                    'file' => $file,
-                    'dark' => !empty($_POST['print_dark']),
-                );
+                $c['label'] = $label;
                 $found = true;
             }
         }
         unset($c);
         if (!$found) {
-            return array('error', 'Категория не найдена.');
+            return array('error', 'Категория не найдена, обновите страницу.');
         }
         return jetron_ts_save('prints.json', array('categories' => $cats)) === false
             ? array('error', 'Не удалось записать настройки.')
-            : array('ok', 'Принт добавлен в категорию.');
+            : array('ok', 'Категория переименована в «' . $label . '».');
+    }
+
+    if ($action === 'cat_move') {
+        $slug = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $dir  = wp_unslash($_POST['dir'] ?? '') === 'up' ? -1 : 1;
+        $cats = jetron_ts_categories();
+        $pos  = null;
+        foreach ($cats as $i => $c) {
+            if (($c['slug'] ?? '') === $slug) {
+                $pos = $i;
+            }
+        }
+        if ($pos === null) {
+            return array('error', 'Категория не найдена, обновите страницу.');
+        }
+        $to = $pos + $dir;
+        if ($to < 0 || $to >= count($cats)) {
+            return array('ok', 'Категория уже с краю списка.');
+        }
+        $tmp        = $cats[$pos];
+        $cats[$pos] = $cats[$to];
+        $cats[$to]  = $tmp;
+        return jetron_ts_save('prints.json', array('categories' => $cats)) === false
+            ? array('error', 'Не удалось записать настройки.')
+            : array('ok', 'Порядок категорий изменён.');
+    }
+
+    if ($action === 'print_add') {
+        $slug  = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $files = jetron_ts_field_files('print_file');
+        if (!count($files)) {
+            return array('error', 'Выберите хотя бы одну картинку принта.');
+        }
+        $cats = jetron_ts_categories();
+        $pos  = null;
+        foreach ($cats as $i => $c) {
+            if (($c['slug'] ?? '') === $slug) {
+                $pos = $i;
+            }
+        }
+        if ($pos === null) {
+            return array('error', 'Категория не найдена.');
+        }
+        // Пачка: битые файлы пропускаем, остальные сохраняем и перечисляем ошибки в конце.
+        $added  = 0;
+        $errors = array();
+        foreach ($files as $file) {
+            $path = jetron_ts_store_file($file, 'prints/' . $slug, array('png', 'jpg', 'jpeg', 'webp'));
+            if (is_array($path)) {
+                $errors[] = $file['name'] . ': ' . $path['error'];
+                continue;
+            }
+            $cats[$pos]['items'][] = array(
+                'id'   => $slug . '-' . substr(md5($path . microtime()), 0, 6),
+                'file' => $path,
+                'dark' => !empty($_POST['print_dark']),
+            );
+            $added++;
+        }
+        if ($added && jetron_ts_save('prints.json', array('categories' => $cats)) === false) {
+            return array('error', 'Не удалось записать настройки.');
+        }
+        if (!$added) {
+            return array('error', 'Ни один файл не загрузился. ' . implode(' · ', $errors));
+        }
+        $msg = 'Загружено картинок: ' . $added . '.';
+        if (count($errors)) {
+            $msg .= ' Не приняты: ' . implode(' · ', $errors);
+            return array('error', $msg);
+        }
+        return array('ok', $msg);
     }
 
     if ($action === 'print_del') {
@@ -555,12 +648,38 @@ function jetron_ts_tab_prints($nonce) {
         echo '<p>Категорий пока нет.</p>';
     }
 
-    foreach ($cats as $c) {
+    $last = count($cats) - 1;
+    foreach ($cats as $idx => $c) {
         $slug  = isset($c['slug']) ? $c['slug'] : '';
         $items = isset($c['items']) ? (array) $c['items'] : array();
         echo '<div style="margin:18px 0;padding:14px;background:#fff;border:1px solid #dcdcde">';
-        echo '<h3 style="margin-top:0">' . esc_html($c['label'] ?? $slug)
-           . ' <span style="font-weight:400;color:#787c82">(' . count($items) . ')</span></h3>';
+        echo '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+
+        // Переименование: подпись меняется, папка с картинками остаётся прежней.
+        echo '<form method="post" style="display:flex;gap:6px;align-items:center;margin:0">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+        echo '<input type="hidden" name="jetron_ts_action" value="cat_rename">';
+        echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
+        echo '<input type="text" name="cat_label" value="' . esc_attr($c['label'] ?? $slug) . '" '
+           . 'style="font-size:15px;font-weight:600;width:260px">';
+        echo '<button type="submit" class="button button-small">Переименовать</button>';
+        echo '</form>';
+
+        echo '<span style="color:#787c82">картинок: ' . count($items) . '</span>';
+
+        // Порядок категорий: этим списком слева пользуется покупатель.
+        foreach (array('up' => '↑ выше', 'down' => '↓ ниже') as $dir => $label) {
+            $disabled = ($dir === 'up' && $idx === 0) || ($dir === 'down' && $idx === $last);
+            echo '<form method="post" style="margin:0">';
+            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+            echo '<input type="hidden" name="jetron_ts_action" value="cat_move">';
+            echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
+            echo '<input type="hidden" name="dir" value="' . esc_attr($dir) . '">';
+            echo '<button type="submit" class="button button-small"' . ($disabled ? ' disabled' : '') . '>'
+               . esc_html($label) . '</button>';
+            echo '</form>';
+        }
+        echo '</div>';
 
         echo '<div style="display:flex;flex-wrap:wrap;gap:10px">';
         foreach ($items as $item) {
@@ -584,9 +703,11 @@ function jetron_ts_tab_prints($nonce) {
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
         echo '<input type="hidden" name="jetron_ts_action" value="print_add">';
         echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
-        echo '<input type="file" name="print_file" accept=".png,.jpg,.jpeg,.webp" required> ';
-        echo '<label style="margin:0 10px"><input type="checkbox" name="print_dark" value="1"> тёмный принт</label> ';
-        submit_button('Загрузить принт', 'secondary', 'submit', false);
+        echo '<input type="file" name="print_file[]" accept=".png,.jpg,.jpeg,.webp" multiple required> ';
+        echo '<label style="margin:0 10px"><input type="checkbox" name="print_dark" value="1"> тёмные принты</label> ';
+        submit_button('Загрузить принты', 'secondary', 'submit', false);
+        echo '<p class="description" style="margin:6px 0 0">Можно выбрать сразу несколько файлов: '
+           . 'Ctrl (⌘) или Shift в окне выбора. Галочка «тёмные» применится ко всей пачке.</p>';
         echo '</form>';
 
         echo '<form method="post" style="margin-top:6px" '
