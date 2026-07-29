@@ -187,6 +187,11 @@ export class LibraryPanel {
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);
+    // Кадры останавливаются, когда вкладка уходит в фон, поэтому дублируем событиями.
+    try {
+      window.parent.addEventListener('scroll', sync, { passive: true });
+      window.parent.addEventListener('resize', sync);
+    } catch { /* другой домен: остаёмся на кадрах */ }
   }
 
   closeModal() {
@@ -198,7 +203,13 @@ export class LibraryPanel {
       cancelAnimationFrame(this._raf);
       this._raf = null;
     }
-    this._onViewport = null;
+    if (this._onViewport) {
+      try {
+        window.parent.removeEventListener('scroll', this._onViewport);
+        window.parent.removeEventListener('resize', this._onViewport);
+      } catch { /* уже недоступен */ }
+      this._onViewport = null;
+    }
   }
 }
 
