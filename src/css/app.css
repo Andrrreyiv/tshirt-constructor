@@ -574,6 +574,9 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
 
 /* ── Мобильная раскладка ────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  /* Без min-width:0 колонка грида растягивается по min-content содержимого
+     (макет + карусель моделей) и на телефоне появляется горизонтальная прокрутка. */
+  #app > * { min-width: 0; }
   #app {
     grid-template-columns: 1fr; gap: 16px; margin-top: 16px;
     padding-left: max(24px, env(safe-area-inset-left));
