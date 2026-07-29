@@ -342,26 +342,52 @@ function jetron_ts_handle_products($admin, $action) {
         }
         $admin['colors'] = $colors;
 
-        $forms = jetron_ts_forms();
-        $forms[] = array(
+        $label = $type === 'oversize' ? 'Оверсайз' : 'Базовая';
+        $entry = array(
             'id'        => sanitize_title($type . '-' . $color),
             'type'      => $type,
-            'typeLabel' => $type === 'oversize' ? 'Оверсайз' : 'Базовая',
+            'typeLabel' => $label,
             'colorId'   => $color_id,
             'color'     => $color,
             'colorHex'  => $hex,
             'images'    => array('front' => $front, 'back' => $back),
         );
+        // Такая пара «фасон + цвет» уже есть — считаем это заменой фотографий, а не дублем.
+        $forms   = jetron_ts_forms();
+        $replaced = false;
+        foreach ($forms as &$f) {
+            if (($f['id'] ?? '') === $entry['id']) {
+                $f = $entry;
+                $replaced = true;
+            }
+        }
+        unset($f);
+        if (!$replaced) {
+            $forms[] = $entry;
+        }
         $admin['forms'] = $forms;
         return jetron_ts_save('admin.json', $admin) === false
             ? array('error', 'Не удалось записать настройки.')
-            : array('ok', 'Изделие «' . ($type === 'oversize' ? 'Оверсайз' : 'Базовая') . ' ' . $color . '» добавлено.');
+            : array('ok', 'Изделие «' . $label . ' ' . $color . '» ' . ($replaced ? 'обновлено.' : 'добавлено.'));
     }
 
     if ($action === 'form_del') {
-        $id = sanitize_text_field(wp_unslash($_POST['form_id'] ?? ''));
-        $admin['forms'] = array_values(array_filter(jetron_ts_forms(), function ($f) use ($id) {
+        $id    = sanitize_text_field(wp_unslash($_POST['form_id'] ?? ''));
+        $forms = jetron_ts_forms();
+        $left  = array_values(array_filter($forms, function ($f) use ($id) {
             return ($f['id'] ?? '') !== $id;
+        }));
+        if (count($left) === count($forms)) {
+            return array('error', 'Изделие не найдено, обновите страницу и повторите.');
+        }
+        $admin['forms'] = $left;
+        // Цвет без единой футболки убираем, иначе покупатель увидит пустой кружок выбора.
+        $used = array();
+        foreach ($left as $f) {
+            $used[$f['colorId'] ?? ''] = true;
+        }
+        $admin['colors'] = array_values(array_filter(jetron_ts_colors(), function ($c) use ($used) {
+            return isset($used[$c['id'] ?? '']);
         }));
         return jetron_ts_save('admin.json', $admin) === false
             ? array('error', 'Не удалось записать настройки.')
@@ -375,12 +401,21 @@ function jetron_ts_handle_products($admin, $action) {
                 ? array('error', 'Не удалось записать настройки.')
                 : array('ok', 'Библиотека принтов возвращена к исходной.');
         }
-        if ($section !== '' && isset($admin[$section])) {
-            unset($admin[$section]);
-            return jetron_ts_save('admin.json', $admin) === false
-                ? array('error', 'Не удалось записать настройки.')
-                : array('ok', 'Раздел сброшен к значениям по умолчанию.');
+        // Каталог футболок и список цветов связаны: сбрасываем их только вместе.
+        $keys = $section === 'forms' ? array('forms', 'colors') : array($section);
+        $hit  = false;
+        foreach ($keys as $k) {
+            if ($k !== '' && isset($admin[$k])) {
+                unset($admin[$k]);
+                $hit = true;
+            }
         }
+        if (!$hit) {
+            return array('ok', 'Раздел и так со значениями по умолчанию.');
+        }
+        return jetron_ts_save('admin.json', $admin) === false
+            ? array('error', 'Не удалось записать настройки.')
+            : array('ok', 'Раздел сброшен к значениям по умолчанию.');
     }
     return null;
 }
@@ -627,7 +662,6 @@ function jetron_ts_tab_products($nonce) {
     echo '</form></div>';
 
     echo '<p style="margin-top:14px">';
-    jetron_ts_reset_form('forms', $nonce, 'Вернуть исходный каталог футболок');
-    jetron_ts_reset_form('colors', $nonce, 'Вернуть исходный список цветов');
+    jetron_ts_reset_form('forms', $nonce, 'Вернуть исходный каталог футболок и цветов');
     echo '</p>';
 }
