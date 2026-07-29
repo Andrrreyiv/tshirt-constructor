@@ -3,7 +3,7 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
-import { fitBoxInFrame } from './BoxFit.js?v=20260729c';
+import { fitBoxInFrame } from './BoxFit.js?v=20260729d';
 
 export class PrintEditor {
   /**

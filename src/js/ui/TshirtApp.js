@@ -3,17 +3,17 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260729c';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260729c';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260729c';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260729c';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260729c';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260729c';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260729c';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260729c';
-import { Recolor } from '../tshirt/Recolor.js?v=20260729c';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260729c';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260729c';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260729d';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260729d';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260729d';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260729d';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260729d';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260729d';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260729d';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260729d';
+import { Recolor } from '../tshirt/Recolor.js?v=20260729d';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260729d';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260729d';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
