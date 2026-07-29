@@ -3,6 +3,7 @@
 
 import { validateConfig } from './core/ConfigLoader.js';
 import { TshirtApp } from './ui/TshirtApp.js';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js';
 
 const CONFIG_URL = 'src/config/tshirt-mock-config.json';
 
@@ -10,6 +11,15 @@ async function boot() {
   const res = await fetch(CONFIG_URL);
   if (!res.ok) throw new Error(`Конфиг не загружен: ${res.status}`);
   const config = await res.json();
+
+  // Настройки из админ-страницы WordPress (jetron-tshirt-admin.php). Файла нет (демо на
+  // GitHub Pages) или раздел битый — молча остаёмся на базовом конфиге.
+  let config2 = config;
+  try {
+    const ares = await fetch('admin.json', { cache: 'no-store' });
+    if (ares.ok) config2 = applyTshirtAdmin(config, await ares.json());
+  } catch { /* админка не настроена */ }
+  Object.assign(config, config2);
 
   const { ok, errors } = validateConfig(config);
   if (!ok) {
@@ -24,6 +34,9 @@ async function boot() {
   try {
     const mres = await fetch('src/config/prints-manifest.json');
     if (mres.ok) manifest = await mres.json();
+    // Категории и картинки, заведённые владельцем в админке, перекрывают базовую библиотеку.
+    const pres = await fetch('prints.json', { cache: 'no-store' });
+    if (pres.ok) manifest = applyPrintsOverride(manifest, await pres.json());
   } catch { /* библиотека опциональна */ }
 
   const app = new TshirtApp({
