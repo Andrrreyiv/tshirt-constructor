@@ -179,10 +179,14 @@ export class LibraryPanel {
     };
     sync();
     this._onViewport = sync;
-    try {
-      window.parent.addEventListener('scroll', sync, { passive: true });
-      window.parent.addEventListener('resize', sync);
-    } catch { /* другой домен: остаёмся на обычном fixed */ }
+    // Событий scroll родителя недостаточно: часть прокруток (инерция на телефоне,
+    // программные переходы) их не даёт. Пока окно открыто, пересчитываем каждый кадр.
+    const tick = () => {
+      if (!this.overlay) return;
+      sync();
+      this._raf = requestAnimationFrame(tick);
+    };
+    this._raf = requestAnimationFrame(tick);
   }
 
   closeModal() {
@@ -190,13 +194,11 @@ export class LibraryPanel {
     this.overlay.remove();
     this.overlay = null;
     if (this._onKey) document.removeEventListener('keydown', this._onKey);
-    if (this._onViewport) {
-      try {
-        window.parent.removeEventListener('scroll', this._onViewport);
-        window.parent.removeEventListener('resize', this._onViewport);
-      } catch { /* уже недоступен */ }
-      this._onViewport = null;
+    if (this._raf) {
+      cancelAnimationFrame(this._raf);
+      this._raf = null;
     }
+    this._onViewport = null;
   }
 }
 

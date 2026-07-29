@@ -1,7 +1,7 @@
 // Сборка заказа из состояния конструктора в тестируемый, сериализуемый объект.
 // Это контракт передачи в корзину/WooCommerce (U1): цена считается той же чистой
 // calculatePrice, что и в UI, поэтому сервер сможет её независимо пересчитать.
-import { calculatePrice } from './PriceCalculator.js?v=20260729d';
+import { calculatePrice } from './PriceCalculator.js?v=20260729e';
 
 export function buildOrder({ config, formId, ageCategory = 'adult', gaiters = false, jetron = {}, quantity = 1, placements = [] }) {
   const form = config.forms.find((f) => f.id === formId);
