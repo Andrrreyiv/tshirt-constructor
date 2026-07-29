@@ -150,6 +150,39 @@ export class LibraryPanel {
 
     document.body.append(overlay);
     this.overlay = overlay;
+    this._pinToViewport();
+  }
+
+  // На сайте конструктор стоит в iframe без своей прокрутки: его «экран» равен всей высоте
+  // документа, поэтому position:fixed центрирует окно по СЕРЕДИНЕ КОНСТРУКТОРА, а не по экрану
+  // покупателя. На телефоне это выглядело так, будто кнопка «Выбрать принт» не работает.
+  // Поэтому во встроенном режиме кладём окно ровно на видимую часть и следим за прокруткой.
+  _pinToViewport() {
+    const frame = (() => { try { return window.frameElement; } catch { return null; } })();
+    if (!frame || !this.overlay) return;
+    const sync = () => {
+      if (!this.overlay) return;
+      let box;
+      let viewportH;
+      try {
+        box = frame.getBoundingClientRect();
+        viewportH = window.parent.innerHeight;
+      } catch { return; }
+      const top = Math.max(0, -box.top);
+      const height = Math.max(240, Math.min(viewportH, box.bottom) - Math.max(0, box.top));
+      this.overlay.style.position = 'absolute';
+      this.overlay.style.top = top + 'px';
+      this.overlay.style.bottom = 'auto';
+      this.overlay.style.height = height + 'px';
+      const card = this.overlay.querySelector('.libm__card');
+      if (card) card.style.maxHeight = '100%';
+    };
+    sync();
+    this._onViewport = sync;
+    try {
+      window.parent.addEventListener('scroll', sync, { passive: true });
+      window.parent.addEventListener('resize', sync);
+    } catch { /* другой домен: остаёмся на обычном fixed */ }
   }
 
   closeModal() {
@@ -157,6 +190,13 @@ export class LibraryPanel {
     this.overlay.remove();
     this.overlay = null;
     if (this._onKey) document.removeEventListener('keydown', this._onKey);
+    if (this._onViewport) {
+      try {
+        window.parent.removeEventListener('scroll', this._onViewport);
+        window.parent.removeEventListener('resize', this._onViewport);
+      } catch { /* уже недоступен */ }
+      this._onViewport = null;
+    }
   }
 }
 
