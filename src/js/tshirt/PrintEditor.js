@@ -3,8 +3,8 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
-import { fitBoxInFrame } from './BoxFit.js?v=20260730d';
-import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260730d';
+import { fitBoxInFrame } from './BoxFit.js?v=20260730e';
+import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260730e';
 
 export class PrintEditor {
   /**
@@ -107,9 +107,9 @@ export class PrintEditor {
   }
 
   /** Добавить текстовый слой. */
-  addText({ text, color }) {
+  addText({ text, color, fontId = null }) {
     const side = this.getSide();
-    const d = { id: uid(), kind: 'text', text, color, fx: 0.1, fy: 0.42, fw: 0.8, fh: 0.16 };
+    const d = { id: uid(), kind: 'text', text, color, fontId, fx: 0.1, fy: 0.42, fw: 0.8, fh: 0.16 };
     this.layers.add(side, d);
     if (this.frameEl) this._renderLayer(d);
     this.onChange();
@@ -160,6 +160,9 @@ export class PrintEditor {
     const span = el('div', 'pf-text__body');
     span.textContent = d.text;
     span.style.color = d.color || '#111';
+    // Шрифты надписи объявлены в app.css как ts-<id> (@font-face). Без выбора остаётся
+    // шрифт из CSS, чтобы старые слои без fontId рисовались как раньше.
+    if (d.fontId) span.style.fontFamily = textFontFamily(d.fontId);
     const handle = el('div', 'pf-print__handle');
     handle.setAttribute('aria-label', 'Изменить размер');
     const del = el('button', 'pf-print__del');
@@ -286,6 +289,11 @@ function pct(f) { return `${f * 100}%`; }
 function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 function wrap(handle) { return handle.parentElement; }
+
+/** CSS-семейство шрифта надписи по id из конфига. */
+export function textFontFamily(fontId) {
+  return '"ts-' + fontId + '", var(--font-display)';
+}
 
 /** Промис-обёртка над загрузкой картинки. */
 function loadImage(src) {

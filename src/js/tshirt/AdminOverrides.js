@@ -11,9 +11,22 @@ export function applyTshirtAdmin(config, admin) {
   if (!admin || typeof admin !== 'object') return out;
 
   applyPrices(out, admin.prices);
-  out.colors = listOr(out.colors, admin.colors, isColor);
+  out.colors = keepNotes(config.colors, listOr(out.colors, admin.colors, isColor));
   out.forms = listOr(out.forms, admin.forms, isForm);
   return out;
+}
+
+// Пояснения к цветам админка пока не редактирует. Без этого правка цвета в админке
+// молча стирала бы текст рядом с палитрой: раздел заменяется целиком.
+function keepNotes(base, colors) {
+  const byId = new Map((base || []).map((c) => [c.id, c.note]));
+  return colors.map((c) => {
+    if (str(c.note)) return c;
+    const kept = byId.get(c.id);
+    // Новый цвет из админки просто остаётся без пояснения: пустой ключ не заводим,
+    // блок рядом с палитрой скрывается сам.
+    return str(kept) ? { ...c, note: kept } : c;
+  });
 }
 
 export function applyPrintsOverride(manifest, override) {

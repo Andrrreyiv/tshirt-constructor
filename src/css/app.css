@@ -16,6 +16,12 @@
   font-display: swap;
 }
 
+/* Шрифты НАДПИСИ на футболке (ТЗ п.69, макет клиента 30.07 «Шрифт и цвет»).
+   Имена ts-<id> совпадают с id в config.fonts — их подставляет textFontFamily(). */
+@font-face { font-family: "ts-russoone";  src: url("../../assets/fonts/RussoOne.ttf")  format("truetype"); font-display: swap; }
+@font-face { font-family: "ts-oswald";    src: url("../../assets/fonts/Oswald.ttf")    format("truetype"); font-display: swap; }
+@font-face { font-family: "ts-prostoone"; src: url("../../assets/fonts/ProstoOne.ttf") format("truetype"); font-display: swap; }
+
 :root {
   --font-display: "Oswald", "Manrope", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-body: "Manrope", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -116,11 +122,6 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   flex: 1 1 200px; min-width: 0; max-width: 340px;
 }
-.canvas-label {
-  font-family: var(--font-display);
-  font-weight: 600; font-size: 13px; color: var(--stage-label);
-  text-transform: uppercase; letter-spacing: .16em;
-}
 .canvas-wrap {
   background: var(--stage-card);
   border: 1px solid var(--stage-border);
@@ -139,7 +140,6 @@ body {
   border-color: var(--brand);
   box-shadow: 0 0 0 2px var(--brand-ring), var(--sh-md);
 }
-.canvas-col.is-active .canvas-label { color: var(--brand-strong); }
 
 .canvas-wrap { width: 100%; }
 /* Рамка печати позиционируется в ПРОЦЕНТАХ от этого блока (PrintFrame.cssBox),
@@ -234,13 +234,6 @@ body {
   user-select: none;
 }
 
-/* Подсказка под сценой */
-.stage-hint {
-  color: var(--muted); font-size: 12.5px; margin-top: 18px;
-  max-width: 520px; text-align: center; line-height: 1.6;
-  position: relative; z-index: 1;
-}
-
 /* ── Выбор цвета и фасона ПОД макетом (как в jetron) ────────────────── */
 .colorpick {
   width: 100%; max-width: 640px;
@@ -259,6 +252,17 @@ body {
   text-transform: uppercase; color: var(--stage-text);
 }
 .cp-title b { color: var(--ink); font-weight: 700; }
+
+/* Макет клиента 30.07: слева «ЦВЕТ: …» со свотчами, справа пояснение к выбранному цвету.
+   На узком экране колонки складываются в одну. */
+.cp-grid {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 28px; align-items: start;
+}
+.cp-note {
+  margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.5;
+  max-width: 46ch;
+}
 
 .color-palette { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
 .swatch {
@@ -280,48 +284,6 @@ body {
   white-space: nowrap;
 }
 
-.cp-models-label {
-  font-family: var(--font-display);
-  font-size: 12px; font-weight: 600; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--stage-text); margin-bottom: 10px;
-}
-.cp-models-label b { color: var(--stage-label); font-weight: 700; }
-
-.model-carousel {
-  display: flex; gap: 12px; overflow-x: auto;
-  padding: 6px 8px 10px; margin: 0 -6px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
-}
-.model-carousel::-webkit-scrollbar { height: 7px; }
-.model-carousel::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
-.model-carousel::-webkit-scrollbar-track { background: transparent; }
-.model-card {
-  flex: 0 0 auto; width: 92px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 0; border: 0; background: none;
-  cursor: pointer; scroll-snap-align: start;
-  font-family: inherit;
-  transition: transform .18s var(--ease);
-}
-.model-card:hover { transform: translateY(-2px); }
-.model-thumb {
-  width: 100%; aspect-ratio: 3 / 4; border-radius: var(--r-sm);
-  overflow: hidden; background: transparent;
-  display: grid; place-items: center;
-  transition: box-shadow .18s var(--ease);
-}
-.model-card:hover .model-thumb { box-shadow: 0 0 0 2px var(--brand-ring); }
-.model-card.active .model-thumb { box-shadow: 0 0 0 2px var(--brand); }
-.model-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.model-name {
-  font-size: 12px; font-weight: 700; color: var(--muted);
-  letter-spacing: .02em; text-align: center;
-}
-.model-card.active .model-name { color: var(--brand-strong); }
-
 /* ── Панель управления ──────────────────────────────────────────────── */
 .panel { display: flex; flex-direction: column; gap: 10px; }
 .panel > section {
@@ -333,15 +295,6 @@ body {
   transition: box-shadow .2s var(--ease);
 }
 .panel > section:hover { box-shadow: var(--sh-md); }
-
-.panel-title { padding: 4px 4px 6px; }
-.panel-title h2 {
-  margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-size: 22px; font-weight: 700; letter-spacing: .01em;
-  text-transform: uppercase; color: var(--ink);
-}
-.panel-title p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 
 .panel h3 {
   margin: 0 0 14px;
@@ -454,39 +407,6 @@ body {
 }
 .lib__thumb { max-width: 100%; max-height: 100%; object-fit: contain; }
 
-/* ── Текст ──────────────────────────────────────────────────────────── */
-.text-row { display: flex; gap: 8px; align-items: center; }
-.text-row__input {
-  flex: 1; min-width: 0;
-  padding: 11px 13px;
-  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
-  background: var(--surface-2); color: var(--ink);
-  font-size: 14px; font-family: inherit;
-  transition: border-color .15s var(--ease), box-shadow .15s var(--ease), background .15s var(--ease);
-}
-.text-row__input:focus {
-  outline: none; border-color: var(--brand); background: #fff;
-  box-shadow: 0 0 0 4px var(--brand-ring);
-}
-.text-row__color {
-  flex: 0 0 auto;
-  width: 44px; height: 44px;
-  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
-  padding: 3px; background: var(--surface-2);
-  cursor: pointer;
-}
-.text-row__add {
-  flex: 0 0 auto;
-  padding: 11px 18px;
-  border: none; border-radius: var(--r-sm);
-  background: var(--brand); color: #fff;
-  font-family: inherit; font-size: 14px; font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 3px 12px rgba(47, 111, 224, .28);
-  transition: background .15s var(--ease), transform .15s var(--ease);
-}
-.text-row__add:hover { background: var(--brand-strong); transform: translateY(-1px); }
-
 /* ── Итог + CTA (липкая карточка) ───────────────────────────────────── */
 .price-box { position: sticky; top: 20px; }
 .order__product {
@@ -561,7 +481,7 @@ body {
 
 /* ── Доступность и тач ──────────────────────────────────────────────── */
 :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 2px; }
-button, .swatch, .seg__btn, .model-card, .lib__cell, label {
+button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -596,9 +516,14 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   /* Портрет телефона: одна сторона на строку и крупно — по узкому превью
      тяжело попадать пальцем в принт. */
   .canvas-col { flex-basis: 100%; max-width: 100%; }
+  /* Пояснение к цвету уходит под палитру: две колонки на телефоне не помещаются. */
+  .cp-grid { grid-template-columns: 1fr; gap: 12px; }
+  .cp-note { max-width: none; }
+  /* Строка надписи в столбик: поле, кнопка и бейдж в один ряд не влезают. */
+  .design-row--text { flex-wrap: wrap; }
+  .design-row--text .design-row__input { flex-basis: 100%; }
   .panel > section { padding: 16px; }
   .price-total { font-size: 27px; }
-  .model-card { width: 96px; }
 }
 
 /* ── Тач-цели ───────────────────────────────────────────────────────
@@ -609,12 +534,15 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
   .seg__btn { min-height: 46px; }
   .cta { min-height: 52px; }
   .lib__chip { min-height: 44px; padding: 6px 14px; }
-  .text-row__add { min-height: 46px; }
-  .text-row__input { min-height: 46px; }
-  .text-row__color { width: 46px; height: 46px; }
   .sizes-toggle { min-height: 44px; padding: 10px 0; }
   .lib__upload-btn { min-height: 52px; }
   .lib__cell { min-height: 56px; }
+  .design-row__btn { min-height: 46px; }
+  .design-row__input { min-height: 46px; }
+  .design-row__add { min-height: 44px; }
+  .text-badge { min-height: 44px; }
+  .font-opt { min-height: 48px; }
+  .text-opts__picker { width: 52px; height: 40px; }
   /* Крестик и ручка принта живут на самом макете: раздувать их визуально нельзя —
      закроют принт. Поэтому растим невидимую зону нажатия до 44px, а значок
      оставляем компактным. */
@@ -628,19 +556,94 @@ button, .swatch, .seg__btn, .model-card, .lib__cell, label {
    Клиент 28.07: список принтов в панели превращался в «полотенце», вынесли в окно.
    Раскладка ЗЕРКАЛЬНА референсу: плитка слева, категории справа, потому что кнопка
    вызова у нас в правой панели («нам надо зеркально сделать»). */
-.lib-open {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 12px 12px 12px 16px;
-  background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-md);
-  cursor: pointer; font: inherit; text-align: left;
+/* ── Строки блока «Добавить дизайн» (макет клиента 30.07) ─────────────
+   Кремовая плашка, внутри белая кнопка, стрелка и миниатюра. Ровно как нарисовано:
+   раньше это была белая кнопка с рамкой, теперь плашка + кнопка внутри. */
+.design-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2); border: 1.5px solid var(--line);
+  border-radius: var(--r-md); cursor: pointer;
   transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
 }
-.lib-open:hover { border-color: var(--brand); box-shadow: var(--sh-sm); }
-.lib-open__label { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
-.lib-open__arrow { color: var(--muted); font-size: 17px; margin-right: auto; }
-.lib-open__thumb {
-  width: 64px; height: 44px; object-fit: contain; flex-shrink: 0;
-  border-radius: 8px; background: var(--surface-2);
+.design-row:hover { border-color: var(--brand-ring); box-shadow: var(--sh-sm); }
+.design-row__btn {
+  padding: 11px 20px; border: 0; border-radius: 10px;
+  background: #fff; color: var(--brand-strong);
+  font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: var(--sh-sm);
+  transition: color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.design-row__btn:hover { color: var(--brand); box-shadow: var(--sh-md); }
+.design-row__arrow { color: var(--ink-2); font-size: 18px; margin-right: auto; }
+.design-row__thumb {
+  width: 52px; height: 52px; object-fit: contain; flex-shrink: 0;
+  border-radius: 10px; background: #fff;
+  border: 1px solid var(--line-strong);
+}
+
+/* Строка надписи: пока пусто — выглядит как подпись «Добавить текст» из макета. */
+.design-row--text { cursor: default; gap: 8px; }
+.design-row__input {
+  flex: 1; min-width: 0;
+  padding: 11px 4px; border: 0; background: none;
+  color: var(--ink); font-family: inherit; font-size: 15px;
+}
+.design-row__input::placeholder { color: var(--ink-2); opacity: 1; }
+.design-row__input:focus { outline: none; }
+.design-row__input:focus::placeholder { color: var(--muted); }
+.design-row__add {
+  flex: 0 0 auto; padding: 9px 14px;
+  border: 0; border-radius: 10px;
+  background: var(--brand); color: #fff;
+  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.design-row__add:hover { background: var(--brand-strong); }
+.design-row__add[hidden] { display: none; }
+
+.text-badge {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 9px 14px; border: 0; border-radius: 999px;
+  background: #fff; color: var(--brand-strong);
+  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  box-shadow: var(--sh-sm);
+}
+.text-badge:hover { color: var(--brand); }
+.text-badge__dot {
+  width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+  background: var(--success);
+  position: relative;
+}
+/* Галочка внутри точки — как в макете клиента. */
+.text-badge__dot::after {
+  content: ''; position: absolute;
+  left: 3.5px; top: 3px; width: 4px; height: 2px;
+  border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg);
+}
+
+/* Раскрытый выбор шрифта и цвета надписи. */
+.text-opts { margin-top: 10px; }
+.text-opts[hidden] { display: none; }
+.font-list { display: flex; flex-direction: column; gap: 6px; }
+.font-opt {
+  padding: 10px 12px; text-align: left; cursor: pointer;
+  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--surface-2); font-family: inherit;
+  transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.font-opt:hover { border-color: var(--brand); background: #fff; }
+.font-opt--active { border-color: var(--brand); background: var(--brand-soft); }
+/* Образец нарисован самим шрифтом — выбирают глазами, а не по названию. */
+.font-opt__sample { font-size: 20px; line-height: 1.2; }
+.text-opts__color {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 10px; font-size: 13.5px; color: var(--ink-2);
+}
+.text-opts__picker {
+  width: 44px; height: 34px; padding: 2px; cursor: pointer;
+  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--surface-2);
 }
 
 .libm {

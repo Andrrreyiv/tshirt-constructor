@@ -34,7 +34,13 @@ export function buildOrder({ config, state, layers, scalers, priceCalc, textPric
     for (const d of layers.list(side)) {
       if ((d.kind ?? 'print') === 'text') {
         const price = textPrice.price(hasPrint);
-        texts.push({ text: d.text, color: d.color, price });
+        // ТЗ п.109: в заказ уходит и шрифт надписи, иначе печатнику нечем его набрать.
+        const font = config.fonts?.find((f) => f.id === d.fontId) ?? null;
+        texts.push({
+          text: d.text, color: d.color, price,
+          fontId: d.fontId ?? null,
+          fontName: font?.name ?? null,
+        });
         textsTotal += price;
       } else {
         const cm = scaler ? scaler.sizeCm(d.fw, d.fh) : { w: 0, h: 0 };

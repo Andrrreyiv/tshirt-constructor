@@ -3,18 +3,19 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730d';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730d';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260730d';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260730d';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260730d';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260730d';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730d';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730d';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260730d';
-import { Recolor } from '../tshirt/Recolor.js?v=20260730d';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730d';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730d';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730e';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730e';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260730e';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260730e';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260730e';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260730e';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730e';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730e';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260730e';
+import { Recolor } from '../tshirt/Recolor.js?v=20260730e';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730e';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730e';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260730e';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -116,7 +117,6 @@ export class TshirtApp {
       const isActive = side.id === this.state.side;
       if (!isActive) continue; // неактивная сторона живёт только в превью панели
       const col = el('div', 'canvas-col' + (isActive ? ' is-active' : ''));
-      col.append(el('div', 'canvas-label', side.label));
 
       const wrap = el('div', 'canvas-wrap' + (isActive ? ' is-active' : ''));
       wrap.setAttribute('role', 'button');
@@ -169,11 +169,14 @@ export class TshirtApp {
     const form = this.currentForm();
     this.colorEl.innerHTML = '';
 
+    // Макет клиента 30.07: слева «ЦВЕТ: …» со свотчами, справа пояснение к выбранному цвету.
+    const grid = el('div', 'cp-grid');
+    const left = el('div', 'cp-left');
     const head = el('div', 'cp-head');
     const title = el('div', 'cp-title');
     title.append(document.createTextNode('Цвет: '), el('b', '', form?.color ?? '—'));
     head.append(title);
-    this.colorEl.append(head);
+    left.append(head);
 
     // Палитра цветов изделия
     const palette = el('div', 'color-palette');
@@ -195,30 +198,15 @@ export class TshirtApp {
       }
       palette.append(sw);
     }
-    this.colorEl.append(palette);
+    left.append(palette);
+    grid.append(left);
 
-    // Фасон — карточками с живым превью выбранного цвета
-    const label = el('div', 'cp-models-label');
-    label.append(document.createTextNode('Фасон: '), el('b', '', form?.typeLabel ?? '—'));
-    this.colorEl.append(label);
-
-    const carousel = el('div', 'model-carousel');
-    for (const opt of typeOptions(c)) {
-      const variant = c.forms.find(f => f.type === opt.value && f.colorId === this.state.colorId)
-        ?? c.forms.find(f => f.type === opt.value);
-      const card = el('button', 'model-card' + (opt.value === this.state.type ? ' active' : ''));
-      card.type = 'button';
-      card.setAttribute('aria-pressed', String(opt.value === this.state.type));
-      const thumb = el('div', 'model-thumb');
-      const img = el('img');
-      img.src = variant?.images?.front ?? '';
-      img.alt = opt.label;
-      thumb.append(img);
-      card.append(thumb, el('span', 'model-name', opt.label));
-      card.addEventListener('click', () => { this.state.type = opt.value; this.render(); });
-      carousel.append(card);
-    }
-    this.colorEl.append(carousel);
+    // Пояснение к выбранному цвету (config.colors[].note). Пустое поле просто скрывает блок.
+    // Блок «Фасон» с каруселью убран 30.07: он дублировал «Тип футболки» в панели,
+    // в макете клиента его нет.
+    const note = c.colors.find(x => x.id === this.state.colorId)?.note;
+    if (note) grid.append(el('p', 'cp-note', note));
+    this.colorEl.append(grid);
   }
 
   // ── Панель параметров ────────────────────────────────────────────────────
@@ -247,13 +235,10 @@ export class TshirtApp {
     const c = this.config;
     this.panelEl.innerHTML = '';
 
-    const head = el('div', 'panel-title');
-    head.append(el('h2', '', 'Конструктор футболок'));
-    head.append(el('p', '', 'Выберите изделие, добавьте принт и надпись — цена пересчитается сразу.'));
-    this.panelEl.append(head);
-
-    // Изделие
-    const product = section('Изделие');
+    // Заголовка «Конструктор футболок» и подзаголовка в макете клиента 30.07 нет:
+    // название есть на самой странице сайта, в панели оно только съедало высоту.
+    // Изделие — секция без заголовка, как в макете.
+    const product = section();
     product.append(this.segField('Размерная линейка',
       [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
       this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); }));
@@ -268,7 +253,9 @@ export class TshirtApp {
     this.panelEl.append(product);
 
     // Дизайн: принт, затем надпись, затем метод нанесения — порядок из макета клиента.
-    const printSec = section('Добавить дизайн', 'до ' + (c.layers?.maxPrintsPerSide ?? 2) + ' принтов на сторону');
+    // Подпись «до N принтов на сторону» убрана 30.07: в макете её нет, а потолок
+    // и так виден по сообщению при попытке добавить третий принт.
+    const printSec = section('Добавить дизайн');
     printSec.append(this.libraryField());
     printSec.append(this.textField());
     printSec.append(this.segField('Метод нанесения',
@@ -317,6 +304,8 @@ export class TshirtApp {
           if ((d.kind ?? 'print') === 'text') {
             const t = el('div', 'sideprev__text', d.text);
             t.style.color = d.color || '#111';
+            // Тем же шрифтом, что и на макете: превью обещает то, что уйдёт в печать.
+            if (d.fontId) t.style.fontFamily = textFontFamily(d.fontId);
             item.append(t);
           } else {
             const pi = el('img', 'sideprev__print');
@@ -420,36 +409,85 @@ export class TshirtApp {
     return sec;
   }
 
+  /**
+   * Строка надписи по макету клиента 30.07: «Добавить текст» слева, бейдж «Шрифт и цвет»
+   * справа. Пока поле пустое, строка выглядит ровно как в макете (подпись — это placeholder).
+   * Кнопка «Добавить» появляется только когда есть что добавлять.
+   * Бейдж раскрывает выбор шрифта (ТЗ п.69) и цвета (U8 — полный RGB-пикер).
+   */
   textField() {
     const field = el('div', 'field');
 
-    const row = el('div', 'text-row');
-    const input = el('input', 'text-row__input');
+    const row = el('div', 'design-row design-row--text');
+    const input = el('input', 'design-row__input');
     input.type = 'text';
-    input.placeholder = 'Ваша надпись';
+    input.placeholder = 'Добавить текст';
     input.value = this.state.textInput;
-    input.addEventListener('input', () => { this.state.textInput = input.value; });
+    input.setAttribute('aria-label', 'Текст надписи');
+    input.addEventListener('input', () => {
+      this.state.textInput = input.value;
+      add.hidden = input.value.trim() === '';
+    });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.addText(); });
 
-    const color = el('input', 'text-row__color');
-    color.type = 'color'; // U8: полный RGB-пикер
-    color.value = this.state.textColor;
-    color.title = 'Цвет текста (любой)';
-    color.addEventListener('input', () => { this.state.textColor = color.value; });
-
-    const add = el('button', 'text-row__add', 'Добавить');
+    const add = el('button', 'design-row__add', 'Добавить');
     add.type = 'button';
+    add.hidden = (this.state.textInput || '').trim() === '';
     add.addEventListener('click', () => this.addText());
 
-    row.append(input, color, add);
+    const badge = el('button', 'text-badge');
+    badge.type = 'button';
+    badge.setAttribute('aria-expanded', String(this.state.textOptsOpen === true));
+    badge.append(el('span', 'text-badge__dot'), document.createTextNode('Шрифт и цвет'));
+
+    row.append(input, add, badge);
     field.append(row);
 
-    const disc = this.config.prices?.text?.combinedDiscountPct ?? 0;
-    field.append(el('div', 'hint',
-      'Надпись ' + (this.config.prices?.text?.standalone ?? 0) + ' ₽. '
-      + 'Вместе с принтом — дешевле на ' + disc + '%. '
-      + 'Ляжет на сторону «' + sideLabel(this.config, this.state.side) + '».'));
+    const opts = el('div', 'text-opts');
+    opts.hidden = this.state.textOptsOpen !== true;
+    opts.append(this.fontList());
+    const colorRow = el('label', 'text-opts__color');
+    colorRow.append(el('span', '', 'Цвет надписи'));
+    const color = el('input', 'text-opts__picker');
+    color.type = 'color'; // U8: полный RGB-пикер, в отличие от цветов изделия
+    color.value = this.state.textColor;
+    color.addEventListener('input', () => {
+      this.state.textColor = color.value;
+      for (const s of opts.querySelectorAll('.font-opt__sample')) s.style.color = color.value;
+    });
+    colorRow.append(color);
+    opts.append(colorRow);
+    field.append(opts);
+
+    badge.addEventListener('click', () => {
+      this.state.textOptsOpen = this.state.textOptsOpen !== true;
+      opts.hidden = !this.state.textOptsOpen;
+      badge.setAttribute('aria-expanded', String(this.state.textOptsOpen));
+    });
     return field;
+  }
+
+  /** Список шрифтов: образец нарисован самим шрифтом, чтобы выбирали глазами. */
+  fontList() {
+    const box = el('div', 'font-list');
+    for (const f of this.config.fonts ?? []) {
+      const isActive = f.id === this.currentFontId();
+      const btn = el('button', 'font-opt' + (isActive ? ' font-opt--active' : ''));
+      btn.type = 'button';
+      btn.setAttribute('aria-pressed', String(isActive));
+      const sample = el('span', 'font-opt__sample', f.name);
+      sample.style.fontFamily = textFontFamily(f.id);
+      sample.style.color = this.state.textColor;
+      btn.append(sample);
+      btn.addEventListener('click', () => { this.state.fontId = f.id; this.render(); });
+      box.append(btn);
+    }
+    return box;
+  }
+
+  /** Выбранный шрифт надписи; по умолчанию первый из конфига. */
+  currentFontId() {
+    return this.state.fontId ?? this.config.fonts?.[0]?.id ?? null;
   }
 
   addText() {
@@ -457,25 +495,31 @@ export class TshirtApp {
     if (!text) return;
     const editor = this.activeEditor();
     if (!editor) return;
-    editor.addText({ text, color: this.state.textColor });
+    editor.addText({ text, color: this.state.textColor, fontId: this.currentFontId() });
     this.state.textInput = '';
     this.render();
+  }
+
+  /** Принт, уже положенный на активную сторону — он и показывается миниатюрой в строке. */
+  activePrintSrc() {
+    const prints = this.layers.list(this.state.side).filter(d => (d.kind ?? 'print') === 'print');
+    return prints.length ? prints[prints.length - 1].src : null;
   }
 
   libraryField() {
     const field = el('div', 'field');
     const libEl = el('div', 'lib');
-    // Клиент 28.07: библиотека вынесена в отдельное окно, в панели только кнопка вызова.
+    // Клиент 28.07: библиотека вынесена в отдельное окно, в панели только строка вызова.
+    // Подсказки под строкой в макете 30.07 нет — сторона видна по выделенному превью
+    // и переключателю «Сторона нанесения» прямо над блоком.
     this.library.renderTrigger(libEl, {
+      thumbSrc: this.activePrintSrc(),
       onOpen: () => this.library.openModal({
         onPick: (src) => this.addPrint(src),
         onUpload: (file) => this.uploadPrint(file),
       }),
     });
     field.append(libEl);
-    field.append(el('div', 'hint',
-      'Принт ляжет на сторону «' + sideLabel(this.config, this.state.side) + '». '
-      + 'Тяните его внутри рамки, угол — размер.'));
     return field;
   }
 
@@ -574,12 +618,14 @@ function el(tag, cls, text) {
   return node;
 }
 
-/** Карточка панели с заголовком (и необязательной подписью справа). */
+/** Карточка панели. Без заголовка — секция изделия в макете клиента идёт без него. */
 function section(title, note) {
   const sec = document.createElement('section');
-  const h = el('h3', '', title);
-  if (note) h.append(el('small', '', note));
-  sec.append(h);
+  if (title) {
+    const h = el('h3', '', title);
+    if (note) h.append(el('small', '', note));
+    sec.append(h);
+  }
   return sec;
 }
 
@@ -589,11 +635,6 @@ function rowLine(label, value) {
   return row;
 }
 
-function typeOptions(config) {
-  const seen = new Map();
-  for (const f of config.forms) if (!seen.has(f.type)) seen.set(f.type, f.typeLabel);
-  return [...seen].map(([value, label]) => ({ value, label }));
-}
 
 function sideLabel(config, sideId) {
   return config.sides.find(s => s.id === sideId)?.label ?? sideId;

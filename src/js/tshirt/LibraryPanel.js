@@ -42,23 +42,31 @@ export class LibraryPanel {
     ];
   }
 
-  /** Кнопка в панели: «Выбрать принт →» с миниатюрой (макет клиента). */
-  renderTrigger(el, { onOpen }) {
+  /**
+   * Строка в панели по макету клиента 30.07: кремовый контейнер, внутри белая кнопка
+   * «Добавить принт», стрелка и миниатюра.
+   * thumbSrc — принт, уже положенный на активную сторону; без него показываем первый
+   * из библиотеки, чтобы место миниатюры не пустовало (в макете оно занято).
+   */
+  renderTrigger(el, { onOpen, thumbSrc = null }) {
     el.innerHTML = '';
-    const btn = mk('button', 'lib-open');
+    const row = mk('div', 'design-row');
+    const btn = mk('button', 'design-row__btn', 'Добавить принт');
     btn.type = 'button';
-    btn.append(mk('span', 'lib-open__label', 'Выбрать принт'));
-    btn.append(mk('span', 'lib-open__arrow', '→'));
-    const first = this.allItems()[0];
-    if (first) {
-      const th = mk('img', 'lib-open__thumb');
-      th.src = first.file;
+    row.append(btn);
+    row.append(mk('span', 'design-row__arrow', '→'));
+    const src = thumbSrc || this.allItems()[0]?.file;
+    if (src) {
+      const th = mk('img', 'design-row__thumb');
+      th.src = src;
       th.alt = '';
       th.loading = 'lazy';
-      btn.append(th);
+      row.append(th);
     }
     btn.addEventListener('click', onOpen);
-    el.append(btn);
+    // Клик по всей плашке тоже открывает окно: в макете это одна цельная строка.
+    row.addEventListener('click', (e) => { if (e.target !== btn) onOpen(); });
+    el.append(row);
   }
 
   /** Открыть окно библиотеки. Повторный вызов не плодит окна. */
