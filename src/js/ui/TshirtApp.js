@@ -3,17 +3,18 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730a';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260730a';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260730a';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260730a';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260730a';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730a';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730a';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260730a';
-import { Recolor } from '../tshirt/Recolor.js?v=20260730a';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730a';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730a';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730b';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730b';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260730b';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260730b';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260730b';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260730b';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730b';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730b';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260730b';
+import { Recolor } from '../tshirt/Recolor.js?v=20260730b';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730b';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730b';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -50,11 +51,37 @@ export class TshirtApp {
   }
 
   start() {
-    for (const zone of this.config.zoneTemplate) {
-      this.frames[zone.view] = new PrintFrame(zone, this.config.canvas);
-      this.scalers[zone.view] = new CmScaler(zone, this.config.canvas, this.config.printSize);
-    }
+    this.buildZones();
     this.render();
+  }
+
+  /**
+   * Зоны печати под текущий возраст. Коробка всегда приводится к пропорциям физической
+   * зоны (клиент 29.07: рамка обещала 40×50, а на экране была почти квадратной).
+   */
+  buildZones() {
+    const canvas = this.config.canvas;
+    const stageAspect = (canvas?.width ?? 1) / (canvas?.height ?? 1);
+    const byAge = this.config.frame?.byAge ?? {};
+    const adultCm = { w: byAge.adult?.wCm ?? 40, h: byAge.adult?.hCm ?? 50 };
+    const ageCm = byAge[this.state.age]
+      ? { w: byAge[this.state.age].wCm, h: byAge[this.state.age].hCm }
+      : adultCm;
+    this.zones = {};
+    for (const src of this.config.zoneTemplate) {
+      // Владелец правит коробку для взрослой зоны, детская выводится от центра.
+      const adultBox = alignBoxToCm(src.box, adultCm, stageAspect);
+      const box = ageCm === adultCm ? adultBox : deriveBox(adultBox, adultCm, ageCm);
+      const zone = { ...src, box: alignBoxToCm(box, ageCm, stageAspect), cm: { ...ageCm } };
+      this.zones[zone.view] = zone;
+      this.frames[zone.view] = new PrintFrame(zone, canvas);
+      this.scalers[zone.view] = new CmScaler(zone, canvas, this.config.printSize);
+    }
+  }
+
+  /** Зона стороны с учётом возраста (для превью и редактора). */
+  zoneFor(view) {
+    return (this.zones && this.zones[view]) || this.config.zoneTemplate.find(z => z.view === view);
   }
 
   /** Активная форма (мокап) по типу и цвету. */
@@ -195,6 +222,27 @@ export class TshirtApp {
   }
 
   // ── Панель параметров ────────────────────────────────────────────────────
+  /** Фасоны из каталога: значение + подпись как в карточке товара. */
+  typeOptions() {
+    const seen = new Map();
+    for (const f of this.config.forms) {
+      if (!seen.has(f.type)) seen.set(f.type, f.typeLabel ?? f.type);
+    }
+    return [...seen.entries()].map(([value, label]) => ({ value, label }));
+  }
+
+  /** Сменить фасон, сохранив выбранный цвет, если он есть у нового фасона. */
+  pickType(type) {
+    if (this.state.type === type) return;
+    this.state.type = type;
+    const has = this.config.forms.some(f => f.type === type && f.colorId === this.state.colorId);
+    if (!has) {
+      const first = this.config.forms.find(f => f.type === type);
+      if (first) this.state.colorId = first.colorId;
+    }
+    this.render();
+  }
+
   renderPanel() {
     const c = this.config;
     this.panelEl.innerHTML = '';
@@ -206,29 +254,27 @@ export class TshirtApp {
 
     // Изделие
     const product = section('Изделие');
+    product.append(this.segField('Размерная линейка',
+      [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
+      this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); }));
+    product.append(this.sizesField());
+    product.append(this.segField('Тип футболки', this.typeOptions(),
+      this.state.type, v => this.pickType(v)));
     product.append(this.segField('Плотность ткани',
       c.densities.map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
       this.state.densityG, v => { this.state.densityG = Number(v); this.render(); }));
-    product.append(this.segField('Размерная линейка',
-      [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
-      this.state.age, v => { this.state.age = v; this.render(); }));
-    product.append(this.sizesField());
+    // Превью сторон и выбор стороны: в макете клиента они идут сразу под плотностью.
+    product.append(this.sidePreviewField());
     this.panelEl.append(product);
 
-    // Принт
-    const printSec = section('Принт', 'до ' + (c.layers?.maxPrintsPerSide ?? 2) + ' на сторону');
+    // Дизайн: принт, затем надпись, затем метод нанесения — порядок из макета клиента.
+    const printSec = section('Добавить дизайн', 'до ' + (c.layers?.maxPrintsPerSide ?? 2) + ' принтов на сторону');
+    printSec.append(this.libraryField());
+    printSec.append(this.textField());
     printSec.append(this.segField('Метод нанесения',
       Object.entries(c.prices.print.methods).map(([id, m]) => ({ value: id, label: m.label })),
       this.state.printMethod, v => { this.state.printMethod = v; this.render(); }));
-    printSec.append(this.libraryField());
-    // Превью сторон + переключатель: в макете клиента они идут сразу под выбором принта.
-    printSec.append(this.sidePreviewField());
     this.panelEl.append(printSec);
-
-    // Надпись
-    const textSec = section('Надпись');
-    textSec.append(this.textField());
-    this.panelEl.append(textSec);
 
     // Итог заказа + CTA
     this.panelEl.append(this.orderField());
@@ -259,7 +305,7 @@ export class TshirtApp {
       box.append(img);
 
       // Нанесения: координаты хранятся в долях РАМКИ, пересчитываем в доли мокапа.
-      const zone = this.config.zoneTemplate.find(z => z.view === side.id);
+      const zone = this.zoneFor(side.id);
       if (zone) {
         for (const d of this.layers.list(side.id)) {
           const b = printBoxOnMockup(zone.box, d);
@@ -320,6 +366,16 @@ export class TshirtApp {
       p.typeLabel + ', ' + p.color + ', ' + p.densityG + ' г, '
       + (p.age === 'child' ? 'детская' : 'взрослая') + ' · ' + order.methodLabel));
 
+    // Детализация: клиент на макете держит её свёрнутой, чтобы панель не разрасталась.
+    const details = document.createElement('details');
+    details.className = 'order__details';
+    details.open = this.state.detailsOpen ?? false;
+    details.addEventListener('toggle', () => { this.state.detailsOpen = details.open; });
+    const summary = document.createElement('summary');
+    summary.className = 'order__details-sum';
+    summary.textContent = 'Детализация';
+    details.append(summary);
+
     // Нанесения по сторонам (только непустые).
     let hasAny = false;
     for (const side of this.config.sides) {
@@ -334,10 +390,10 @@ export class TshirtApp {
       for (const tx of s.texts) {
         block.append(rowLine('Текст «' + tx.text + '»', tx.price + ' ₽'));
       }
-      sec.append(block);
+      details.append(block);
     }
     if (!hasAny) {
-      sec.append(el('div', 'order__empty', 'Нанесений пока нет — добавьте принт или надпись.'));
+      details.append(el('div', 'order__empty', 'Нанесений пока нет — добавьте принт или надпись.'));
     }
 
     // Разбивка цены.
@@ -345,7 +401,8 @@ export class TshirtApp {
     br.append(rowLine('Футболка', order.price.base + ' ₽'));
     if (order.price.prints > 0) br.append(rowLine('Принты', order.price.prints + ' ₽'));
     if (order.price.texts > 0) br.append(rowLine('Надпись', order.price.texts + ' ₽'));
-    sec.append(br);
+    details.append(br);
+    sec.append(details);
 
     // Итог крупно + CTA.
     const foot = el('div', 'price-foot');

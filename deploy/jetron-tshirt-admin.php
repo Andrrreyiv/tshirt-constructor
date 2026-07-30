@@ -18,6 +18,7 @@ if (!defined('ABSPATH')) {
 
 const JETRON_TS_NONCE = 'jetron_tshirt_admin';
 const JETRON_TS_ROOT  = 'tshirt/';
+const JETRON_TS_ZONES_NONCE = 'jetron_tshirt_zones';
 
 function jetron_ts_path($file) {
     return ABSPATH . JETRON_TS_ROOT . $file;
@@ -141,6 +142,57 @@ function jetron_ts_upload($field, $sub, $allowed, $max_mb = 8, $must_be_image = 
     }
     return jetron_ts_store_file($files[0], $sub, $allowed, $max_mb, $must_be_image);
 }
+
+/**
+ * Редактор зоны печати (только админ). Конструктор открывается по /tshirt/?zones=edit,
+ * там владелец таскает рамку по мокапу и сохраняет её сюда. Пишем tshirt/zones.json.
+ */
+add_action('wp_ajax_jetron_ts_zones_boot', function () {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Недостаточно прав.'), 403);
+    }
+    wp_send_json_success(array('nonce' => wp_create_nonce(JETRON_TS_ZONES_NONCE)));
+});
+
+add_action('wp_ajax_jetron_ts_zones', function () {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Недостаточно прав.'), 403);
+    }
+    if (!check_ajax_referer(JETRON_TS_ZONES_NONCE, 'nonce', false)) {
+        wp_send_json_error(array('message' => 'Страница устарела, обновите её.'), 400);
+    }
+    $raw = json_decode(wp_unslash($_POST['zones'] ?? ''), true);
+    if (!is_array($raw)) {
+        wp_send_json_error(array('message' => 'Не разобрал координаты.'), 400);
+    }
+    $clean = array();
+    foreach ($raw as $view => $box) {
+        $view = sanitize_key($view);
+        if (!in_array($view, array('front', 'back'), true) || !is_array($box)) {
+            continue;
+        }
+        $out = array();
+        foreach (array('x', 'y', 'w', 'h') as $k) {
+            if (!isset($box[$k]) || !is_numeric($box[$k])) {
+                wp_send_json_error(array('message' => 'Координата ' . $k . ' не число.'), 400);
+            }
+            $v = (float) $box[$k];
+            // Доли мокапа: за пределы 0..1 рамка уехать не может.
+            $out[$k] = round(min(max($v, 0), 1), 4);
+        }
+        if ($out['w'] <= 0 || $out['h'] <= 0) {
+            wp_send_json_error(array('message' => 'Нулевая рамка не сохраняется.'), 400);
+        }
+        $clean[$view] = $out;
+    }
+    if (!count($clean)) {
+        wp_send_json_error(array('message' => 'Нет ни одной корректной зоны.'), 400);
+    }
+    if (jetron_ts_save('zones.json', $clean) === false) {
+        wp_send_json_error(array('message' => 'Не удалось записать файл.'), 500);
+    }
+    wp_send_json_success(array('saved' => array_keys($clean)));
+});
 
 /** Пункт меню в админке. */
 add_action('admin_menu', function () {
@@ -489,6 +541,11 @@ function jetron_ts_handle_products($admin, $action) {
 
     if ($action === 'reset') {
         $section = sanitize_key(wp_unslash($_POST['section'] ?? ''));
+        if ($section === 'zones') {
+            return jetron_ts_save('zones.json', array()) === false
+                ? array('error', 'Не удалось записать настройки.')
+                : array('ok', 'Зона печати возвращена к исходной.');
+        }
         if ($section === 'prints') {
             return jetron_ts_save('prints.json', array()) === false
                 ? array('error', 'Не удалось записать настройки.')
@@ -782,7 +839,17 @@ function jetron_ts_tab_products($nonce) {
     submit_button('Добавить в конструктор', 'primary', 'submit', false);
     echo '</form></div>';
 
+    echo '<h3 style="margin-top:26px">Зона печати</h3>';
+    echo '<p style="color:#50575e;max-width:760px">Пунктирная рамка на макете это физическая зона печати: '
+       . 'взрослая 40×50 см, детская выводится из неё автоматически. Если на вашей фотографии рамка '
+       . 'стоит не по месту или выглядит мелкой, поправьте её в редакторе: там она двигается и '
+       . 'тянется мышью, пропорции 40×50 держатся сами.</p>';
+    echo '<p><a class="button button-primary" href="' . esc_url(home_url('/tshirt/?zones=edit')) . '" target="_blank">'
+       . 'Открыть редактор зоны печати</a></p>';
+
     echo '<p style="margin-top:14px">';
     jetron_ts_reset_form('forms', $nonce, 'Вернуть исходный каталог футболок и цветов');
+    echo '</p><p>';
+    jetron_ts_reset_form('zones', $nonce, 'Вернуть исходную зону печати');
     echo '</p>';
 }

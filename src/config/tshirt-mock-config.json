@@ -3,9 +3,19 @@
   "version": "0.1.0-mock",
   "prices": {
     "form": {
-      "base": { "180": 600 },
-      "oversize": { "200": 800, "240": 1000 },
-      "_note_form": "U3 ОТВЕТ (прайс клиента 22.07): цена футболки = ТИП × ПЛОТНОСТЬ. Базовая 180=600, Оверсайз 200=800 / 240=1000. Возраст на базовую цену НЕ влияет (влияет только на размер рамки: детская 30×40). ОТВЕТ 23.07: детская = та же цена, что взрослая (клиент поправит сам позже); детская рамка 30×40 подтверждена. ОТВЕТ 23.07: линеек в этом конструкторе НЕТ — каждая футболка привязывается к конкретной карточке товара (размеры/плотность/тип базовая-оверсайз берутся из карточки). ПОПРАВКА клиента 23.07: во ВСЕХ конструкторах стоимость самого изделия подтягивается ИЗ КАРТОЧКИ ТОВАРА — матрица тип×плотность здесь = демо-заглушка, на боевом источник цены изделия = карточка WooCommerce."
+      "base": {
+        "160": 550,
+        "180": 600,
+        "220": 700,
+        "300": 850
+      },
+      "oversize": {
+        "160": 750,
+        "180": 800,
+        "220": 900,
+        "300": 1050
+      },
+      "_note_form": "U3 ОТВЕТ (прайс клиента 22.07): цена футболки = ТИП × ПЛОТНОСТЬ. Базовая 180=600, Оверсайз 200=800 / 240=1000. Возраст на базовую цену НЕ влияет (влияет только на размер рамки: детская 30×40). ОТВЕТ 23.07: детская = та же цена, что взрослая (клиент поправит сам позже); детская рамка 30×40 подтверждена. ОТВЕТ 23.07: линеек в этом конструкторе НЕТ — каждая футболка привязывается к конкретной карточке товара (размеры/плотность/тип базовая-оверсайз берутся из карточки). ПОПРАВКА клиента 23.07: во ВСЕХ конструкторах стоимость самого изделия подтягивается ИЗ КАРТОЧКИ ТОВАРА — матрица тип×плотность здесь = демо-заглушка, на боевом источник цены изделия = карточка WooCommerce. ПОПРАВКА 30.07: список плотностей расширен до 160/180/220/300 по скриншоту клиента, демо-цены проставлены ровным шагом — на боевом их всё равно перекрывает карточка товара."
     },
     "print": {
       "method": "dtf",
@@ -14,26 +24,86 @@
         "dtf": {
           "label": "DTF",
           "tiers": [
-            { "wCm": 10, "hCm": 10, "price": 400 },
-            { "wCm": 15, "hCm": 15, "price": 550 },
-            { "wCm": 20, "hCm": 20, "price": 750 },
-            { "wCm": 30, "hCm": 30, "price": 850 },
-            { "wCm": 40, "hCm": 40, "price": 1050 },
-            { "wCm": 10, "hCm": 15, "price": 500 },
-            { "wCm": 15, "hCm": 20, "price": 700 },
-            { "wCm": 20, "hCm": 30, "price": 800 },
-            { "wCm": 30, "hCm": 40, "price": 1000 },
-            { "wCm": 40, "hCm": 50, "price": 1250 }
+            {
+              "wCm": 10,
+              "hCm": 10,
+              "price": 400
+            },
+            {
+              "wCm": 15,
+              "hCm": 15,
+              "price": 550
+            },
+            {
+              "wCm": 20,
+              "hCm": 20,
+              "price": 750
+            },
+            {
+              "wCm": 30,
+              "hCm": 30,
+              "price": 850
+            },
+            {
+              "wCm": 40,
+              "hCm": 40,
+              "price": 1050
+            },
+            {
+              "wCm": 10,
+              "hCm": 15,
+              "price": 500
+            },
+            {
+              "wCm": 15,
+              "hCm": 20,
+              "price": 700
+            },
+            {
+              "wCm": 20,
+              "hCm": 30,
+              "price": 800
+            },
+            {
+              "wCm": 30,
+              "hCm": 40,
+              "price": 1000
+            },
+            {
+              "wCm": 40,
+              "hCm": 50,
+              "price": 1250
+            }
           ]
         },
         "film": {
           "label": "Плёнкой",
           "tiers": [
-            { "wCm": 10, "hCm": 15, "price": 400 },
-            { "wCm": 15, "hCm": 20, "price": 500 },
-            { "wCm": 20, "hCm": 30, "price": 600 },
-            { "wCm": 30, "hCm": 40, "price": 700 },
-            { "wCm": 40, "hCm": 50, "price": 800 }
+            {
+              "wCm": 10,
+              "hCm": 15,
+              "price": 400
+            },
+            {
+              "wCm": 15,
+              "hCm": 20,
+              "price": 500
+            },
+            {
+              "wCm": 20,
+              "hCm": 30,
+              "price": 600
+            },
+            {
+              "wCm": 30,
+              "hCm": 40,
+              "price": 700
+            },
+            {
+              "wCm": 40,
+              "hCm": 50,
+              "price": 800
+            }
           ]
         }
       },
@@ -53,46 +123,110 @@
     "displayWidth": 480
   },
   "sides": [
-    { "id": "front", "label": "Грудь" },
-    { "id": "back", "label": "Спина" }
+    {
+      "id": "front",
+      "label": "Грудь"
+    },
+    {
+      "id": "back",
+      "label": "Спина"
+    }
   ],
   "_sides_note": "C12: грудь и спина раздельно, цена суммируется. Каждая сторона — свой набор принтов и своя рамка печати.",
   "printSize": {
-    "minCm": { "w": 5, "h": 5 },
-    "maxCm": { "w": 40, "h": 50 }
+    "minCm": {
+      "w": 5,
+      "h": 5
+    },
+    "maxCm": {
+      "w": 40,
+      "h": 50
+    }
   },
   "_printSize_note": "C10: клэмп размера принта 5x5 min .. 40x50 max. См считаются из пропорций картинки и калибровки рамки (U5 отвечен, см. frame).",
   "frame": {
     "byAge": {
-      "adult": { "wCm": 40, "hCm": 50 },
-      "child": { "wCm": 30, "hCm": 40 }
+      "adult": {
+        "wCm": 40,
+        "hCm": 50
+      },
+      "child": {
+        "wCm": 30,
+        "hCm": 40
+      }
     },
     "_note_frame": "U5+U10 ОТВЕТ (голос 22.07): ОДНА рамка на все типы и обе стороны (грудь=спина). Взрослая 40×50, детская 30×40. Рамка ставится ПО ЦЕНТРУ изделия. За рамку принт вынести нельзя, картинку больше рамки вставить нельзя. Размер не зависит от Базовая/Оверсайз — только от возраста."
   },
   "upload": {
     "maxUploadMB": 20,
-    "formats": ["png", "jpeg", "jpg", "svg", "webp"],
+    "formats": [
+      "png",
+      "jpeg",
+      "jpg",
+      "svg",
+      "webp"
+    ],
     "compressOverMB": 2,
     "maxDimension": 2000,
     "quality": 0.85
   },
   "_upload_note": "C19/U6 ОТВЕТ (голос 22.07): PNG/JPEG/SVG/WebP, макс 20 МБ. WebP оставляем ВКЛЮЧЁННЫМ (клиент: все картинки переводятся в web, отключать НЕ надо). Мокапы клиент грузит как JPG или PNG — без разницы. Тяжёлые фото сжимаются в web-формат.",
   "densities": [
-    { "g": 180, "label": "180 г/м² — базовая", "type": "base" },
-    { "g": 200, "label": "200 г/м² — оверсайз", "type": "oversize" },
-    { "g": 240, "label": "240 г/м² — двухнитка, оверсайз", "type": "oversize" }
+    {
+      "g": 160,
+      "label": "160 г — летняя"
+    },
+    {
+      "g": 180,
+      "label": "180 г — базовая"
+    },
+    {
+      "g": 220,
+      "label": "220 г — оптимальная"
+    },
+    {
+      "g": 300,
+      "label": "300 г — сверхплотная"
+    }
   ],
-  "_densities_note": "U4 ОТВЕТ (прайс + голос 22.07): реальные плотности 180 (базовая) / 200 / 240 (двухнитка, оверсайз). Каждая плотность привязана к типу и имеет комментарий. Список + комментарии ДОЛЖНЫ редактироваться из админки (клиент будет часто менять футболки). Выбор кнопкой/списком, показывать цифру + комментарий.",
+  "_densities_note": "Скриншот клиента 29.07: 160 летняя / 180 базовая / 220 оптимальная / 300 сверхплотная, плотность больше НЕ привязана к фасону. Цена изделия на боевом приходит из карточки товара, значения ниже — демо-заглушка для стенда. Прежний список (180/200/240) снят по скриншоту.",
   "colors": [
-    { "id": "white", "name": "Белый", "hex": "#f4f5f7", "mode": "photo" },
-    { "id": "black", "name": "Чёрный", "hex": "#1c1c1e", "mode": "photo" },
-    { "id": "ivory", "name": "Слоновая кость", "hex": "#e9dfc9", "mode": "photo" }
+    {
+      "id": "white",
+      "name": "Белый",
+      "hex": "#f4f5f7",
+      "mode": "photo"
+    },
+    {
+      "id": "black",
+      "name": "Чёрный",
+      "hex": "#1c1c1e",
+      "mode": "photo"
+    },
+    {
+      "id": "ivory",
+      "name": "Слоновая кость",
+      "hex": "#e9dfc9",
+      "mode": "photo"
+    }
   ],
   "_colors_note": "C3/C4/U13 ОТВЕТ (голос 22.07 + 23.07): сл.кость (ivory) ПОДТВЕРЖДЕНА клиентом 23.07 как обычный вариант цвета («просто один из вариантов цветов») — pending снят. Качество мокапов доводим через дизайнера (решение клиента 23.07: «давайте закажем дизайнера»); фото покрупнее клиент не пришлёт (это всё, что есть). Прочие цвета — из админки перекраской (mode: recolor). ВАРЁНКА (tie-dye) — ОТЛОЖЕНА (голос 22.07): клиент ещё изучает рынок и не выбрал поставщика; реализовать позже как полупрозрачный overlay поверх мокапа (mode: tiedye); оставить возможность самим добавлять мокапы/цвета/варёнки через админку (фильтр: тип формы + плотность + подпись «варёнка»).",
   "fonts": [
-    { "id": "russoone", "name": "Russo One", "file": "assets/fonts/RussoOne-Regular.ttf" },
-    { "id": "oswald", "name": "Oswald", "file": "assets/fonts/Oswald-Regular.ttf" },
-    { "id": "prostoone", "name": "Prosto One", "file": "assets/fonts/ProstoOne-Regular.ttf" }
+    {
+      "id": "russoone",
+      "name": "Russo One",
+      "file": "assets/fonts/RussoOne-Regular.ttf"
+    },
+    {
+      "id": "oswald",
+      "name": "Oswald",
+      "file": "assets/fonts/Oswald-Regular.ttf"
+    },
+    {
+      "id": "prostoone",
+      "name": "Prosto One",
+      "file": "assets/fonts/ProstoOne-Regular.ttf"
+    }
   ],
   "_fonts_note": "C13: шрифты с кириллицей (образец из jetron). Итоговый список — позже. Цвет текста — RGB-пикер (U8, дефолт).",
   "zoneTemplate": [
@@ -101,19 +235,35 @@
       "label": "Печать на груди",
       "view": "front",
       "type": "print",
-      "box": { "x": 0.26, "y": 0.20, "w": 0.48, "h": 0.50 },
-      "cm": { "w": 40, "h": 50 }
+      "box": {
+        "x": 0.3,
+        "y": 0.2,
+        "w": 0.4,
+        "h": 0.5
+      },
+      "cm": {
+        "w": 40,
+        "h": 50
+      }
     },
     {
       "key": "backPrint",
       "label": "Печать на спине",
       "view": "back",
       "type": "print",
-      "box": { "x": 0.26, "y": 0.20, "w": 0.48, "h": 0.50 },
-      "cm": { "w": 40, "h": 50 }
+      "box": {
+        "x": 0.3,
+        "y": 0.2,
+        "w": 0.4,
+        "h": 0.5
+      },
+      "cm": {
+        "w": 40,
+        "h": 50
+      }
     }
   ],
-  "_zones_note": "Клиент 28.07: зоны груди и спины ОДИНАКОВОГО размера (было 0.40x0.34 против 0.48x0.50 — «на груди маленький квадрат, а на спине большой»). Обе 0.48x0.50 = 40x50 см. C8: фиксированная рамка + clip (за рамкой принт исчезает). box — доли 0..1 canvas (PLACEHOLDER калибровки). cm обеих зон = 40×50 (взрослая, U5/U10 отвечены — реальный размер берётся из frame.byAge по возрасту: adult 40×50 / child 30×40, НЕ зависит от типа). Грудь и спина — одинаковая рамка.",
+  "_zones_note": "Клиент 28.07: зоны груди и спины ОДИНАКОВОГО размера (было 0.40x0.34 против 0.48x0.50 — «на груди маленький квадрат, а на спине большой»). Обе 0.48x0.50 = 40x50 см. C8: фиксированная рамка + clip (за рамкой принт исчезает). box — доли 0..1 canvas (PLACEHOLDER калибровки). cm обеих зон = 40×50 (взрослая, U5/U10 отвечены — реальный размер берётся из frame.byAge по возрасту: adult 40×50 / child 30×40, НЕ зависит от типа). Грудь и спина — одинаковая рамка. ПОПРАВКА 30.07 (голос клиента 29.07): коробка приведена к пропорциям 40×50 (0.4×0.5 вместо 0.48×0.50 = 0.96). Дальше геометрию держит ZoneBox.alignBoxToCm, а владелец правит рамку в /tshirt/?zones=edit (пишется в tshirt/zones.json).",
   "layers": {
     "maxPrintsPerSide": 2,
     "adminAdjustable": true,
@@ -125,36 +275,129 @@
   },
   "forms": [
     {
-      "id": "base-white", "type": "base", "typeLabel": "Базовая", "colorId": "white", "color": "Белый", "colorHex": "#f4f5f7",
-      "images": { "front": "assets/mockups-final/base_white_front.png", "back": "assets/mockups-final/base_white_back.png" }
+      "id": "base-white",
+      "type": "base",
+      "typeLabel": "Короткий рукав",
+      "colorId": "white",
+      "color": "Белый",
+      "colorHex": "#f4f5f7",
+      "images": {
+        "front": "assets/mockups-final/base_white_front.png",
+        "back": "assets/mockups-final/base_white_back.png"
+      }
     },
     {
-      "id": "base-black", "type": "base", "typeLabel": "Базовая", "colorId": "black", "color": "Чёрный", "colorHex": "#1c1c1e",
-      "images": { "front": "assets/mockups-final/base_black_front.png", "back": "assets/mockups-final/base_black_back.png" }
+      "id": "base-black",
+      "type": "base",
+      "typeLabel": "Короткий рукав",
+      "colorId": "black",
+      "color": "Чёрный",
+      "colorHex": "#1c1c1e",
+      "images": {
+        "front": "assets/mockups-final/base_black_front.png",
+        "back": "assets/mockups-final/base_black_back.png"
+      }
     },
     {
-      "id": "base-ivory", "type": "base", "typeLabel": "Базовая", "colorId": "ivory", "color": "Слоновая кость", "colorHex": "#e9dfc9",
-      "images": { "front": "assets/mockups-final/base_ivory_front.png", "back": "assets/mockups-final/base_ivory_back.png" },
+      "id": "base-ivory",
+      "type": "base",
+      "typeLabel": "Короткий рукав",
+      "colorId": "ivory",
+      "color": "Слоновая кость",
+      "colorHex": "#e9dfc9",
+      "images": {
+        "front": "assets/mockups-final/base_ivory_front.png",
+        "back": "assets/mockups-final/base_ivory_back.png"
+      },
       "_back_note": "Спина восстановлена перекраской из base_white_back (U13). Цвет подтверждён клиентом 23.07; качество доводим через дизайнера."
     },
     {
-      "id": "over-white", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "white", "color": "Белый", "colorHex": "#f4f5f7",
-      "images": { "front": "assets/mockups-final/over_white_front.png", "back": "assets/mockups-final/over_white_back.png" }
+      "id": "over-white",
+      "type": "oversize",
+      "typeLabel": "Оверсайз",
+      "colorId": "white",
+      "color": "Белый",
+      "colorHex": "#f4f5f7",
+      "images": {
+        "front": "assets/mockups-final/over_white_front.png",
+        "back": "assets/mockups-final/over_white_back.png"
+      }
     },
     {
-      "id": "over-black", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "black", "color": "Чёрный", "colorHex": "#1c1c1e",
-      "images": { "front": "assets/mockups-final/over_black_front.png", "back": "assets/mockups-final/over_black_back.png" },
+      "id": "over-black",
+      "type": "oversize",
+      "typeLabel": "Оверсайз",
+      "colorId": "black",
+      "color": "Чёрный",
+      "colorHex": "#1c1c1e",
+      "images": {
+        "front": "assets/mockups-final/over_black_front.png",
+        "back": "assets/mockups-final/over_black_back.png"
+      },
       "_back_note": "Спина восстановлена перекраской из over_white_back (U13)."
     },
     {
-      "id": "over-ivory", "type": "oversize", "typeLabel": "Оверсайз", "colorId": "ivory", "color": "Слоновая кость", "colorHex": "#e9dfc9",
-      "images": { "front": "assets/mockups-final/over_ivory_front.png", "back": "assets/mockups-final/over_ivory_back.png" },
+      "id": "over-ivory",
+      "type": "oversize",
+      "typeLabel": "Оверсайз",
+      "colorId": "ivory",
+      "color": "Слоновая кость",
+      "colorHex": "#e9dfc9",
+      "images": {
+        "front": "assets/mockups-final/over_ivory_front.png",
+        "back": "assets/mockups-final/over_ivory_back.png"
+      },
       "_note": "Сл.кость подтверждена клиентом 23.07 как обычный цвет (U13 закрыт); качество доводим через дизайнера."
     }
   ],
   "sizes": {
-    "child": { "title": "Детские размеры", "columns": ["Рост, см", "Возраст, лет"], "rows": [["122-128", "6-7"], ["134-140", "8-10"], ["146-152", "10-12"]] },
-    "adult": { "title": "Взрослые размеры", "columns": ["Российский размер"], "rows": [["44 (XS)"], ["46 (S)"], ["48 (M)"], ["50 (L)"], ["52 (XL)"], ["54 (2XL)"]] }
+    "child": {
+      "title": "Детские размеры",
+      "columns": [
+        "Рост, см",
+        "Возраст, лет"
+      ],
+      "rows": [
+        [
+          "122-128",
+          "6-7"
+        ],
+        [
+          "134-140",
+          "8-10"
+        ],
+        [
+          "146-152",
+          "10-12"
+        ]
+      ]
+    },
+    "adult": {
+      "title": "Взрослые размеры",
+      "columns": [
+        "Российский размер"
+      ],
+      "rows": [
+        [
+          "44 (XS)"
+        ],
+        [
+          "46 (S)"
+        ],
+        [
+          "48 (M)"
+        ],
+        [
+          "50 (L)"
+        ],
+        [
+          "52 (XL)"
+        ],
+        [
+          "54 (2XL)"
+        ]
+      ]
+    }
   },
   "_sizes_note": "C5: сетка Взрослая/Детская (образец). На боевом — из админки WooCommerce (U11).",
   "library": {

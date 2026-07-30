@@ -1,9 +1,11 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260730a';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260730a';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260730a';
+import { validateConfig } from './core/ConfigLoader.js?v=20260730b';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260730b';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260730b';
+import { applyZonesOverride } from './tshirt/AdminOverrides.js?v=20260730b';
+import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260730b';
 
 const CONFIG_URL = 'src/config/tshirt-mock-config.json';
 
@@ -20,6 +22,12 @@ async function boot() {
     if (ares.ok) config2 = applyTshirtAdmin(config, await ares.json());
   } catch { /* админка не настроена */ }
   Object.assign(config, config2);
+
+  // Зона печати, поправленная владельцем в редакторе (/tshirt/?zones=edit).
+  try {
+    const zres = await fetch('zones.json', { cache: 'no-store' });
+    if (zres.ok) Object.assign(config, applyZonesOverride(config, await zres.json()));
+  } catch { /* зону не правили */ }
 
   const { ok, errors } = validateConfig(config);
   if (!ok) {
@@ -47,6 +55,9 @@ async function boot() {
     manifest
   });
   app.start();
+
+  // Админ-режим правки рамки печати. Покупатель его не видит: нужен ?zones=edit и вход в WP.
+  window.__tshirtZoneEditor = initTshirtZoneEditor(app);
 
   window.__tshirtApp = app; // отладка
   return app;

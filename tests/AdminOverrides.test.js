@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { applyTshirtAdmin, applyPrintsOverride } from '../src/js/tshirt/AdminOverrides.js';
+import { applyTshirtAdmin, applyPrintsOverride, applyZonesOverride } from '../src/js/tshirt/AdminOverrides.js';
 
 const base = JSON.parse(readFileSync(fileURLToPath(new URL('../src/config/tshirt-mock-config.json', import.meta.url)), 'utf8'));
 const manifest = JSON.parse(readFileSync(fileURLToPath(new URL('../src/config/prints-manifest.json', import.meta.url)), 'utf8'));
@@ -77,4 +77,24 @@ test('категория без картинок допустима, но без
 test('пустой список категорий и мусор оставляют исходную библиотеку', () => {
   assert.deepEqual(applyPrintsOverride(manifest, { categories: [] }).categories, manifest.categories);
   assert.deepEqual(applyPrintsOverride(manifest, null).categories, manifest.categories);
+});
+
+test('applyZonesOverride подменяет коробку зоны из редактора', () => {
+  const config = { zoneTemplate: [
+    { key: 'chest', view: 'front', box: { x: 0.3, y: 0.2, w: 0.4, h: 0.5 }, cm: { w: 40, h: 50 } },
+    { key: 'backPrint', view: 'back', box: { x: 0.3, y: 0.2, w: 0.4, h: 0.5 }, cm: { w: 40, h: 50 } }
+  ] };
+  const out = applyZonesOverride(config, { front: { x: 0.25, y: 0.15, w: 0.5, h: 0.62 } });
+  assert.deepEqual(out.zoneTemplate[0].box, { x: 0.25, y: 0.15, w: 0.5, h: 0.62 });
+  assert.deepEqual(out.zoneTemplate[1].box, { x: 0.3, y: 0.2, w: 0.4, h: 0.5 }, 'спину не трогали');
+  assert.equal(out.zoneTemplate[0].cm.w, 40, 'сантиметры остаются физическими');
+});
+
+test('applyZonesOverride игнорирует мусор и выход за границы', () => {
+  const config = { zoneTemplate: [{ view: 'front', box: { x: 0.3, y: 0.2, w: 0.4, h: 0.5 } }] };
+  for (const bad of [null, {}, { front: null }, { front: { x: -1, y: 0, w: 0.4, h: 0.5 } },
+                     { front: { x: 0, y: 0, w: 0, h: 0.5 } }, { front: { x: 'a', y: 0, w: 0.4, h: 0.5 } }]) {
+    const out = applyZonesOverride(config, bad);
+    assert.deepEqual(out.zoneTemplate[0].box, { x: 0.3, y: 0.2, w: 0.4, h: 0.5 });
+  }
 });

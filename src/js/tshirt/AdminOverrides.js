@@ -72,3 +72,20 @@ const isCategory = (c) => !!c && str(c.slug) && str(c.label);
 function clone(v) {
   return typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 }
+
+/**
+ * Зона печати из редактора владельца (tshirt/zones.json): {front:{x,y,w,h}, back:{...}}.
+ * Битая или пустая запись игнорируется — остаёмся на конфиге.
+ */
+export function applyZonesOverride(config, zones) {
+  const tpl = Array.isArray(config.zoneTemplate) ? config.zoneTemplate : [];
+  if (!zones || typeof zones !== 'object' || !tpl.length) return { zoneTemplate: tpl };
+  const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+  const next = tpl.map((zone) => {
+    const box = zones[zone.view];
+    if (!box || !num(box.x) || !num(box.y) || !num(box.w) || !num(box.h)) return zone;
+    if (box.w <= 0 || box.h <= 0) return zone;
+    return { ...zone, box: { x: box.x, y: box.y, w: box.w, h: box.h } };
+  });
+  return { zoneTemplate: next };
+}
