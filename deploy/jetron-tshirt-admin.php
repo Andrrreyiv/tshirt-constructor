@@ -106,19 +106,26 @@ function jetron_ts_field_files($field) {
 }
 
 /** Проверка и перенос одного файла в tshirt/assets/<sub>/. Путь или массив с ошибкой. */
-function jetron_ts_store_file($file, $sub, $allowed, $max_mb = 8, $must_be_image = true) {
+function jetron_ts_store_file($file, $sub, $allowed, $max_mb = 25, $must_be_image = true) {
+    // Клиент 30.07 не смог загрузить картинку и не понял почему. Поэтому в каждом отказе
+    // теперь видно ИМЯ файла, его вес и расширение — причина читается сразу.
+    $who = '«' . sanitize_text_field($file['name']) . '»';
+    $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+    $mb  = round(((float) $file['size']) / 1048576, 1);
     if (!is_uploaded_file($file['tmp_name'])) {
-        return array('error' => 'Файл не дошёл до сервера, попробуйте ещё раз.');
+        return array('error' => $who . ': файл не дошёл до сервера, попробуйте ещё раз.');
     }
     if ($file['size'] > $max_mb * 1024 * 1024) {
-        return array('error' => 'Файл больше ' . $max_mb . ' МБ. Сожмите его и попробуйте снова.');
+        return array('error' => $who . ': весит ' . $mb . ' МБ, а можно до ' . $max_mb . ' МБ. Сожмите файл.');
     }
     if ($must_be_image && !@getimagesize($file['tmp_name'])) {
-        return array('error' => 'Это не изображение. Нужен PNG, JPG или WebP.');
+        return array('error' => $who . ': это не картинка' . ($ext ? ' (расширение .' . $ext . ')' : '')
+            . '. Нужен PNG, JPG или WebP. Формат HEIC с айфона и Mac не подходит, пересохраните в PNG.');
     }
     $name = jetron_ts_safe_name($file['name'], $allowed);
     if ($name === null) {
-        return array('error' => 'Формат не подходит. Разрешены: ' . implode(', ', $allowed) . '.');
+        return array('error' => $who . ': формат .' . ($ext ?: '?') . ' не подходит. Разрешены: '
+            . implode(', ', $allowed) . '.');
     }
     $dir = jetron_ts_dir($sub);
     if (!is_dir($dir)) {
@@ -135,7 +142,7 @@ function jetron_ts_store_file($file, $sub, $allowed, $max_mb = 8, $must_be_image
 }
 
 /** Загрузка одиночного файла: путь, null (файла нет) или массив с ошибкой. */
-function jetron_ts_upload($field, $sub, $allowed, $max_mb = 8, $must_be_image = true) {
+function jetron_ts_upload($field, $sub, $allowed, $max_mb = 25, $must_be_image = true) {
     $files = jetron_ts_field_files($field);
     if (!count($files)) {
         return null;
@@ -433,6 +440,37 @@ function jetron_ts_handle() {
             return array('error', $msg);
         }
         return array('ok', $msg);
+    }
+
+    if ($action === 'print_flip') {
+        // Клиент 30.07: «как мне в админке теперь добавить этот тёмный принт или оставить
+        // его белым? Не могу найти». Раньше признак писался ТОЛЬКО при загрузке и сразу
+        // на всю пачку, изменить его можно было лишь перезалив файл.
+        $slug  = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $id    = sanitize_text_field(wp_unslash($_POST['print_id'] ?? ''));
+        $cats  = jetron_ts_categories();
+        $found = false;
+        $now   = false;
+        foreach ($cats as &$c) {
+            if (($c['slug'] ?? '') !== $slug) {
+                continue;
+            }
+            foreach ($c['items'] as &$i) {
+                if (($i['id'] ?? '') === $id) {
+                    $i['dark'] = empty($i['dark']);
+                    $now       = $i['dark'];
+                    $found     = true;
+                }
+            }
+            unset($i);
+        }
+        unset($c);
+        if (!$found) {
+            return array('error', 'Принт не найден, обновите страницу.');
+        }
+        return jetron_ts_save('prints.json', array('categories' => $cats)) === false
+            ? array('error', 'Не удалось записать настройки.')
+            : array('ok', 'Принт помечен как ' . ($now ? 'тёмный' : 'светлый') . '.');
     }
 
     if ($action === 'print_del') {
@@ -752,6 +790,19 @@ function jetron_ts_tab_prints($nonce) {
             echo '<img src="' . esc_url(jetron_ts_url($item['file'] ?? '')) . '" alt="" '
                . 'style="max-width:100%;max-height:104px">';
             echo '</div>';
+            // Подпись и переключатель: до 30.07 признак был виден только по цвету подложки,
+            // и клиент его не считывал («как узнать, какой я поставил пометку»).
+            $is_dark = !empty($item['dark']);
+            echo '<div style="font-size:11px;margin:3px 0 1px;color:' . ($is_dark ? '#3c434a' : '#787c82') . '">'
+               . ($is_dark ? 'для тёмной футболки' : 'для светлой футболки') . '</div>';
+            echo '<form method="post" style="margin-bottom:2px">';
+            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+            echo '<input type="hidden" name="jetron_ts_action" value="print_flip">';
+            echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
+            echo '<input type="hidden" name="print_id" value="' . esc_attr($item['id'] ?? '') . '">';
+            echo '<button type="submit" class="button-link" style="font-size:12px">'
+               . ($is_dark ? 'сделать светлым' : 'сделать тёмным') . '</button>';
+            echo '</form>';
             echo '<form method="post" onsubmit="return confirm(&quot;Убрать этот принт из библиотеки?&quot;)">';
             echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
             echo '<input type="hidden" name="jetron_ts_action" value="print_del">';

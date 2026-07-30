@@ -253,10 +253,28 @@ body {
 }
 .cp-title b { color: var(--ink); font-weight: 700; }
 
+/* Кнопка «Скачать макет» — отдельной строкой над выбором цвета, как в конструкторе формы. */
+.cp-download { display: flex; justify-content: center; margin-bottom: 16px; }
+.stage-btn {
+  padding: 9px 18px; border-radius: 999px;
+  background: #fff; border: 1px solid var(--line-strong);
+  color: var(--ink); cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  box-shadow: var(--sh-sm);
+  transition: border-color .15s var(--ease), transform .15s var(--ease);
+}
+.stage-btn:hover { border-color: var(--navy); transform: translateY(-1px); }
+.stage-btn:disabled { opacity: .55; cursor: progress; transform: none; }
+
 /* Макет клиента 30.07: слева «ЦВЕТ: …» со свотчами, справа пояснение к выбранному цвету.
    На узком экране колонки складываются в одну. */
 .cp-grid {
-  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  display: grid;
+  /* Левая колонка держит ширину под 6 свотчей (6×36 + 5×10 = 266px), даже когда цветов
+     всего три. Клиент 30.07: «будут добавляться цвета, синие, красные, зелёные, надо этот
+     блок вправо сдвинуть, там ещё на три цвета останется». Иначе новые свотчи начнут
+     упираться в пояснение и двигать его каждый раз. */
+  grid-template-columns: minmax(266px, max-content) minmax(0, 1fr);
   gap: 10px 28px; align-items: start;
 }
 .cp-note {
@@ -348,6 +366,23 @@ body {
 .sizes-body[hidden] { display: none; }
 /* Таблица не должна распирать панель на узких экранах — скроллим её саму. */
 .sizes-body { overflow-x: auto; }
+
+/* ── Таблица размеров внутри серого блока «Размерная линейка» (клиент 30.07) ──
+   Раньше она была отдельным полем под блоком и при раскрытии толкала всю панель вниз.
+   Теперь серый контейнер просто подрастает вниз. */
+.seg--stack { flex-direction: column; align-items: stretch; gap: 0; }
+.seg--stack .seg__row { display: flex; gap: 4px; }
+.sizes-wrap {
+  padding: 2px 8px 4px;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+.sizes-wrap .sizes-toggle { font-size: 12.5px; }
+.sizes-wrap .sizes-table { margin-top: 4px; font-size: 12px; }
+.sizes-wrap .sizes-table th, .sizes-wrap .sizes-table td { padding: 4px 6px; }
+/* «Увеличить вниз чуть-чуть» (клиент 30.07): блок растёт ограниченно, длинная сетка
+   прокручивается внутри, а не выталкивает всю панель. */
+.sizes-wrap .sizes-body { max-height: 168px; overflow-y: auto; }
 .sizes-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .sizes-table th, .sizes-table td {
   border-bottom: 1px solid var(--line);
@@ -534,6 +569,7 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   .seg__btn { min-height: 46px; }
   .cta { min-height: 52px; }
   .lib__chip { min-height: 44px; padding: 6px 14px; }
+  .stage-btn { min-height: 44px; }
   .sizes-toggle { min-height: 44px; padding: 10px 0; }
   .lib__upload-btn { min-height: 52px; }
   .lib__cell { min-height: 56px; }

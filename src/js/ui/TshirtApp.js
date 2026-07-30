@@ -169,6 +169,20 @@ export class TshirtApp {
     const form = this.currentForm();
     this.colorEl.innerHTML = '';
 
+    // Кнопка «Скачать макет» (клиент 30.07: «в конструкторе футболок её нет, мы про неё забыли»).
+    // Место то же, что в конструкторе формы: отдельной строкой над выбором цвета.
+    const dl = el('div', 'cp-download');
+    const dlBtn = el('button', 'stage-btn', 'Скачать макет');
+    dlBtn.type = 'button';
+    dlBtn.addEventListener('click', () => {
+      dlBtn.disabled = true;
+      this.downloadMockup()
+        .catch(() => alert('Не удалось собрать макет. Попробуйте ещё раз.'))
+        .finally(() => { dlBtn.disabled = false; });
+    });
+    dl.append(dlBtn);
+    this.colorEl.append(dl);
+
     // Макет клиента 30.07: слева «ЦВЕТ: …» со свотчами, справа пояснение к выбранному цвету.
     const grid = el('div', 'cp-grid');
     const left = el('div', 'cp-left');
@@ -239,10 +253,13 @@ export class TshirtApp {
     // название есть на самой странице сайта, в панели оно только съедало высоту.
     // Изделие — секция без заголовка, как в макете.
     const product = section();
+    // Таблица размеров живёт ВНУТРИ серого блока линейки (клиент 30.07: «серый блок увеличить
+    // вниз чуть-чуть и туда вставить эти взрослые размеры, а то они очень много места занимают
+    // и всё у нас ползает вниз»). Отдельным полем она распирала панель при каждом раскрытии.
     product.append(this.segField('Размерная линейка',
       [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
-      this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); }));
-    product.append(this.sizesField());
+      this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); },
+      this.sizesField()));
     product.append(this.segField('Тип футболки', this.typeOptions(),
       this.state.type, v => this.pickType(v)));
     product.append(this.segField('Плотность ткани',
@@ -543,10 +560,15 @@ export class TshirtApp {
     reader.readAsDataURL(file);
   }
 
-  segField(label, options, active, onPick) {
+  /**
+   * Поле-сегмент. Необязательный extra кладётся ВНУТРЬ серого контейнера под кнопками:
+   * так таблица размеров не распирает панель, а разворачивается внутри блока (клиент 30.07).
+   */
+  segField(label, options, active, onPick, extra = null) {
     const field = el('div', 'field');
     field.append(el('div', 'field__label', label));
-    const seg = el('div', 'seg');
+    const seg = el('div', 'seg' + (extra ? ' seg--stack' : ''));
+    const row = extra ? el('div', 'seg__row') : seg;
     for (const opt of options) {
       const isActive = String(opt.value) === String(active);
       const btn = el('button', 'seg__btn' + (isActive ? ' seg__btn--active' : ''));
@@ -555,20 +577,23 @@ export class TshirtApp {
       btn.append(document.createTextNode(opt.label));
       if (opt.sub) btn.append(el('small', '', opt.sub));
       btn.addEventListener('click', () => onPick(opt.value));
-      seg.append(btn);
+      row.append(btn);
     }
+    if (extra) seg.append(row, extra);
     field.append(seg);
     return field;
   }
 
   sizesField() {
-    const field = el('div', 'field');
+    // Подпись всегда «Таблица размеров» (клиент 30.07): раньше стояло «Взрослые размеры»
+    // из заголовка сетки, и при переключении линейки текст прыгал.
+    const field = el('div', 'sizes-wrap');
     const table = this.config.sizes[this.state.age];
 
     const toggle = el('button', 'sizes-toggle');
     toggle.type = 'button';
     toggle.setAttribute('aria-expanded', String(this.state.sizesOpen));
-    toggle.append(el('span', '', table?.title ?? 'Размеры'), el('span', 'chev', '▾'));
+    toggle.append(el('span', '', 'Таблица размеров'), el('span', 'chev', '▾'));
 
     const body = el('div', 'sizes-body');
     body.hidden = !this.state.sizesOpen;
@@ -592,6 +617,91 @@ export class TshirtApp {
 
     field.append(toggle, body);
     return field;
+  }
+
+  // ── Скачать макет (клиент 30.07) ─────────────────────────────────────────
+  // Конструктор футболок рисует нанесения обычным DOM, а не Fabric, поэтому холст
+  // собираем вручную: мокап в натуральную величину, поверх принты и надписи по тем же
+  // долям, что и на экране (printBoxOnMockup — та же математика, что в превью сторон).
+  async downloadMockup() {
+    const sides = [];
+    for (const side of this.config.sides) {
+      const c = await this._composeSide(side.id);
+      if (c) sides.push({ label: side.label, canvas: c });
+    }
+    if (!sides.length) return;
+
+    const pad = 24, gap = 24, labelH = 34;
+    const maxH = Math.max(...sides.map(s => s.canvas.height));
+    const totalW = sides.reduce((n, s) => n + s.canvas.width, 0) + gap * (sides.length - 1) + pad * 2;
+    const out = document.createElement('canvas');
+    out.width = totalW;
+    out.height = maxH + labelH + pad * 2;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.fillStyle = '#1b1b1b';
+    ctx.font = '600 22px -apple-system, Segoe UI, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    let x = pad;
+    for (const s of sides) {
+      ctx.fillText(s.label, x + s.canvas.width / 2, pad + 24);
+      ctx.drawImage(s.canvas, x, pad + labelH);
+      x += s.canvas.width + gap;
+    }
+
+    const form = this.currentForm();
+    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? ''].filter(Boolean).join('-');
+    const a = document.createElement('a');
+    a.download = name + '.png';
+    a.href = out.toDataURL('image/png');
+    a.click();
+  }
+
+  /** Один холст стороны: мокап в натуральную величину плюс все нанесения. */
+  async _composeSide(sideId) {
+    const form = this.currentForm();
+    const src = form?.images?.[sideId];
+    if (!src) return null;
+    const base = await loadPic(src);
+    const W = base.naturalWidth || base.width;
+    const H = base.naturalHeight || base.height;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(base, 0, 0, W, H);
+
+    const zone = this.zoneFor(sideId);
+    if (!zone) return c;
+    const frameH = zone.box.h * H;    // высота рамки в пикселях — от неё считается кегль
+
+    for (const d of this.layers.list(sideId)) {
+      const b = printBoxOnMockup(zone.box, d);
+      const bx = b.x * W, by = b.y * H, bw = b.w * W, bh = b.h * H;
+      if ((d.kind ?? 'print') === 'text') {
+        // Кегль повторяет экранный: высота рамки × доля высоты слоя × 0.6 (см. _applyTextSize).
+        const size = Math.max(8, frameH * d.fh * 0.6);
+        const family = d.fontId ? textFontFamily(d.fontId) : 'var(--font-display), Oswald, Arial, sans-serif';
+        const font = '700 ' + size + 'px ' + family;
+        try { await document.fonts.load(font, d.text); } catch { /* шрифт не подгрузился — рисуем запасным */ }
+        ctx.save();
+        ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
+        ctx.font = font;
+        ctx.fillStyle = d.color || '#111';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(d.text, bx + bw / 2, by + bh / 2);
+        ctx.restore();
+      } else {
+        const im = await loadPic(d.src);
+        // На экране у принта object-fit: contain — повторяем, иначе картинку растянет.
+        const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
+        const k = Math.min(bw / iw, bh / ih);
+        const w = iw * k, h = ih * k;
+        ctx.drawImage(im, bx + (bw - w) / 2, by + (bh - h) / 2, w, h);
+      }
+    }
+    return c;
   }
 
   // ── Цена: единый источник — buildOrder (база U3 + принты U1 + текст U2) ──
@@ -638,4 +748,14 @@ function rowLine(label, value) {
 
 function sideLabel(config, sideId) {
   return config.sides.find(s => s.id === sideId)?.label ?? sideId;
+}
+
+/** Промис-обёртка над загрузкой картинки для сборки макета. */
+function loadPic(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = src;
+  });
 }
