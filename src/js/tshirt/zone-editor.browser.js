@@ -5,7 +5,7 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730b';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730c';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
