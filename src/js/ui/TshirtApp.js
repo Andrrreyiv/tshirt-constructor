@@ -3,19 +3,19 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730e';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730e';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260730e';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260730e';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260730e';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260730e';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730e';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730e';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260730e';
-import { Recolor } from '../tshirt/Recolor.js?v=20260730e';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730e';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730e';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260730e';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730f';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730f';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260730f';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260730f';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260730f';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260730f';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730f';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730f';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260730f';
+import { Recolor } from '../tshirt/Recolor.js?v=20260730f';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730f';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730f';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260730f';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
