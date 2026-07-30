@@ -183,6 +183,12 @@ add_action('wp_ajax_jetron_ts_zones', function () {
         if ($out['w'] <= 0 || $out['h'] <= 0) {
             wp_send_json_error(array('message' => 'Нулевая рамка не сохраняется.'), 400);
         }
+        if ($out['w'] > 1 || $out['h'] > 1) {
+            wp_send_json_error(array('message' => 'Рамка больше макета.'), 400);
+        }
+        // Рамка должна целиком лежать на макете: иначе часть зоны печати висит за футболкой.
+        $out['x'] = round(min($out['x'], 1 - $out['w']), 4);
+        $out['y'] = round(min($out['y'], 1 - $out['h']), 4);
         $clean[$view] = $out;
     }
     if (!count($clean)) {
