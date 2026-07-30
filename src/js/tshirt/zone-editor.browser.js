@@ -5,7 +5,7 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730c';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730d';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -154,8 +154,9 @@ class TshirtZoneEditor {
   wireDrag(frameEl, view) {
     frameEl.addEventListener('pointerdown', (e) => {
       if (e.target !== frameEl) return; // попали в принт или в уголок — не наше дело
-      e.preventDefault();
       const stage = this.stageRect(frameEl);
+      if (!stage.width || !stage.height) return;
+      e.preventDefault();
       const start = { x: e.clientX, y: e.clientY };
       const box0 = Object.assign({}, this.zoneOf(view).box);
       let box = box0;
@@ -176,9 +177,10 @@ class TshirtZoneEditor {
 
   wireResize(grip, frameEl, view) {
     grip.addEventListener('pointerdown', (e) => {
+      const stage = this.stageRect(frameEl);
+      if (!stage.width || !stage.height) return;
       e.preventDefault();
       e.stopPropagation();
-      const stage = this.stageRect(frameEl);
       const zone = this.zoneOf(view);
       const box0 = Object.assign({}, zone.box);
       const startX = e.clientX;
