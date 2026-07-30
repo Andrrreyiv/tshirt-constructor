@@ -1,9 +1,9 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260729f';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260729f';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260729f';
+import { validateConfig } from './core/ConfigLoader.js?v=20260730a';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260730a';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260730a';
 
 const CONFIG_URL = 'src/config/tshirt-mock-config.json';
 

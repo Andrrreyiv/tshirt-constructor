@@ -3,7 +3,8 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
-import { fitBoxInFrame } from './BoxFit.js?v=20260729f';
+import { fitBoxInFrame } from './BoxFit.js?v=20260730a';
+import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260730a';
 
 export class PrintEditor {
   /**
@@ -55,7 +56,54 @@ export class PrintEditor {
     this.layers.add(side, d);
     if (this.frameEl) this._renderLayer(d);
     this.onChange();
+    // Библиотечные PNG нарисованы с прозрачным запасом по краям: без обрезки рисунок
+    // не доходит до краёв коробки, а подпись «Ш×В см» считает коробку и завышает размер.
+    this._trimAndFit(d).catch(() => { /* JPEG без альфы или другой домен — оставляем как есть */ });
     return true;
+  }
+
+  /** Обрезать прозрачные поля и посадить коробку ровно по картинке. */
+  async _trimAndFit(d) {
+    if (typeof document === 'undefined' || typeof Image === 'undefined') return;
+    const img = await loadImage(d.src);
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    let pixels;
+    try {
+      pixels = ctx.getImageData(0, 0, w, h).data;
+    } catch {
+      return; // защищённая картинка: без данных пикселей обрезать нечем
+    }
+    const bounds = inkBounds(pixels, w, h);
+    if (!bounds) return;
+    let size = { w: bounds.w, h: bounds.h };
+    if (worthTrimming(bounds, w, h)) {
+      const cut = document.createElement('canvas');
+      cut.width = bounds.w;
+      cut.height = bounds.h;
+      cut.getContext('2d').drawImage(img, bounds.x, bounds.y, bounds.w, bounds.h, 0, 0, bounds.w, bounds.h);
+      try {
+        d.src = cut.toDataURL('image/png');
+      } catch {
+        size = { w, h }; // не смогли обрезать — считаем коробку по исходным пропорциям
+      }
+    }
+    if (!this.frameEl) return;
+    const rect = this.frameEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    // Стартуем на 70% рамки: покупателю есть куда и увеличить, и уменьшить.
+    Object.assign(d, fitBox({ w: rect.width, h: rect.height }, size, 0.7));
+    if (d._el) {
+      d._el.remove();
+      this._renderLayer(d);
+    }
+    this.onChange();
   }
 
   /** Добавить текстовый слой. */
@@ -238,3 +286,13 @@ function pct(f) { return `${f * 100}%`; }
 function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 function wrap(handle) { return handle.parentElement; }
+
+/** Промис-обёртка над загрузкой картинки. */
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
