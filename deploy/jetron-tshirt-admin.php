@@ -204,7 +204,39 @@ add_action('wp_ajax_jetron_ts_zones', function () {
     if (jetron_ts_save('zones.json', $clean) === false) {
         wp_send_json_error(array('message' => 'Не удалось записать файл.'), 500);
     }
-    wp_send_json_success(array('saved' => array_keys($clean)));
+
+    // Кадрирование мокапов приходит тем же сохранением (клиент 30.07: «как увеличить размеры
+    // футболки»). Формат: {"<id модели>": {x,y,w,h}} в долях картинки. Раздел необязательный:
+    // его отсутствие не должно ломать сохранение зон, поэтому обрабатываем ПОСЛЕ них.
+    $crops_raw = json_decode(wp_unslash($_POST['crops'] ?? ''), true);
+    $crops = array();
+    if (is_array($crops_raw)) {
+        foreach ($crops_raw as $form_id => $c) {
+            $form_id = sanitize_text_field($form_id);
+            if ($form_id === '' || !is_array($c)) {
+                continue;
+            }
+            $box = array();
+            $bad = false;
+            foreach (array('x', 'y', 'w', 'h') as $k) {
+                if (!isset($c[$k]) || !is_numeric($c[$k])) { $bad = true; break; }
+                $box[$k] = round(min(max((float) $c[$k], 0), 1), 4);
+            }
+            // Слишком мелкий кадр превращает мокап в кашу; вылезающий за картинку — бессмыслица.
+            if ($bad || $box['w'] < 0.1 || $box['h'] < 0.1) {
+                continue;
+            }
+            if ($box['x'] + $box['w'] > 1.0001 || $box['y'] + $box['h'] > 1.0001) {
+                continue;
+            }
+            $crops[$form_id] = $box;
+        }
+    }
+    if (jetron_ts_save('crops.json', $crops) === false) {
+        wp_send_json_error(array('message' => 'Зоны сохранены, а кадры нет: файл не записался.'), 500);
+    }
+
+    wp_send_json_success(array('saved' => array_keys($clean), 'crops' => count($crops)));
 });
 
 /** Пункт меню в админке. */

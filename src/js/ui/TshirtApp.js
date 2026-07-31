@@ -3,19 +3,20 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730f';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730f';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260730f';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260730f';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260730f';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260730f';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730f';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730f';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260730f';
-import { Recolor } from '../tshirt/Recolor.js?v=20260730f';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730f';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730f';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260730f';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260730g';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260730g';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260730g';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260730g';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260730g';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260730g';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260730g';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260730g';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260730g';
+import { Recolor } from '../tshirt/Recolor.js?v=20260730g';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260730g';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260730g';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260730g';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260730g';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -75,14 +76,44 @@ export class TshirtApp {
       const box = ageCm === adultCm ? adultBox : deriveBox(adultBox, adultCm, ageCm);
       const zone = { ...src, box: alignBoxToCm(box, ageCm, stageAspect), cm: { ...ageCm } };
       this.zones[zone.view] = zone;
-      this.frames[zone.view] = new PrintFrame(zone, canvas);
-      this.scalers[zone.view] = new CmScaler(zone, canvas, this.config.printSize);
+      // Рамка живёт над кадрированной картинкой, поэтому её координаты — от видимой части.
+      // Сантиметры не трогаем: CmScaler считает от физической зоны, кадр на них не влияет.
+      const shown = { ...zone, box: zoneInCrop(zone.box, this.currentCrop()) };
+      this.frames[zone.view] = new PrintFrame(shown, canvas);
+      this.scalers[zone.view] = new CmScaler(shown, canvas, this.config.printSize);
     }
   }
 
-  /** Зона стороны с учётом возраста (для превью и редактора). */
+  /** Зона стороны с учётом возраста, в долях ВСЕГО мокапа (редактор правит именно её). */
   zoneFor(view) {
     return (this.zones && this.zones[view]) || this.config.zoneTemplate.find(z => z.view === view);
+  }
+
+  /** Кадр текущего мокапа: режет серые поля, чтобы футболка была крупнее (клиент 30.07). */
+  currentCrop() {
+    // Пока владелец правит кадр в редакторе, картинку показываем целиком: иначе он
+    // не увидит, что именно срезает.
+    if (this._suppressCrop) return FULL_CROP;
+    const form = this.currentForm();
+    return (form && this.config.crops && this.config.crops[form.id]) || FULL_CROP;
+  }
+
+  /**
+   * Зона в долях ВИДИМОЙ части мокапа. Именно ею позиционируется рамка и нанесения:
+   * зоны хранятся от всей картинки, а показываем мы её кадрированной.
+   */
+  zoneView(view) {
+    const zone = this.zoneFor(view);
+    if (!zone) return null;
+    return { ...zone, box: zoneInCrop(zone.box, this.currentCrop()) };
+  }
+
+  /** Применить кадр к картинке мокапа. Без кадрирования ничего не трогаем. */
+  applyCropTo(img) {
+    const st = mockupTransform(this.currentCrop());
+    if (!st) return;
+    img.style.transformOrigin = st.transformOrigin;
+    img.style.transform = st.transform;
   }
 
   /** Активная форма (мокап) по типу и цвету. */
@@ -127,6 +158,7 @@ export class TshirtApp {
       const inner = el('div', 'stage__canvas'); // сжимается по картинке → % рамки = % мокапа
       const img = el('img', 'stage__img');
       img.src = form?.images?.[side.id] ?? '';
+      this.applyCropTo(img);
       img.alt = (form?.typeLabel ?? '') + ' ' + (form?.color ?? '') + ' — ' + side.label;
       inner.append(img);
 
@@ -208,7 +240,7 @@ export class TshirtApp {
         sw.append(el('span', 'swatch__badge', 'под подтв.'));
         sw.disabled = true;
       } else {
-        sw.addEventListener('click', () => { this.state.colorId = color.id; this.render(); });
+        sw.addEventListener('click', () => { this.state.colorId = color.id; this.buildZones(); this.render(); });
       }
       palette.append(sw);
     }
@@ -242,6 +274,7 @@ export class TshirtApp {
       const first = this.config.forms.find(f => f.type === type);
       if (first) this.state.colorId = first.colorId;
     }
+    this.buildZones();   // кадр свой у каждой модели — пересобираем рамки
     this.render();
   }
 
@@ -306,10 +339,12 @@ export class TshirtApp {
       img.src = form?.images?.[side.id] ?? '';
       img.alt = side.label;
       img.loading = 'lazy';
+      this.applyCropTo(img);
       box.append(img);
 
-      // Нанесения: координаты хранятся в долях РАМКИ, пересчитываем в доли мокапа.
-      const zone = this.zoneFor(side.id);
+      // Нанесения: координаты хранятся в долях РАМКИ, пересчитываем в доли ВИДИМОЙ части
+      // мокапа — превью тоже кадрировано, поэтому берём zoneView, а не сырую зону.
+      const zone = this.zoneView(side.id);
       if (zone) {
         for (const d of this.layers.list(side.id)) {
           const b = printBoxOnMockup(zone.box, d);
@@ -664,14 +699,19 @@ export class TshirtApp {
     const src = form?.images?.[sideId];
     if (!src) return null;
     const base = await loadPic(src);
-    const W = base.naturalWidth || base.width;
-    const H = base.naturalHeight || base.height;
+    const srcW = base.naturalWidth || base.width;
+    const srcH = base.naturalHeight || base.height;
+    // Макет отдаём таким же кадром, какой видит покупатель: режем те же серые поля.
+    const crop = this.currentCrop();
+    const sx = crop.x * srcW, sy = crop.y * srcH;
+    const sw = crop.w * srcW, sh = crop.h * srcH;
+    const W = Math.round(sw), H = Math.round(sh);
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
-    ctx.drawImage(base, 0, 0, W, H);
+    ctx.drawImage(base, sx, sy, sw, sh, 0, 0, W, H);
 
-    const zone = this.zoneFor(sideId);
+    const zone = this.zoneView(sideId);   // доли видимой части — совпадают с холстом кадра
     if (!zone) return c;
     const frameH = zone.box.h * H;    // высота рамки в пикселях — от неё считается кегль
 

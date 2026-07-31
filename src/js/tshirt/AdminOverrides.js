@@ -6,6 +6,8 @@
 // конструктор остаётся на базовом конфиге и не падает.
 // Цена САМОГО ИЗДЕЛИЯ здесь не участвует — она приходит из карточки товара WooCommerce.
 
+import { validateCrop } from './Crop.js?v=20260730g';
+
 export function applyTshirtAdmin(config, admin) {
   const out = clone(config);
   if (!admin || typeof admin !== 'object') return out;
@@ -101,4 +103,19 @@ export function applyZonesOverride(config, zones) {
     return { ...zone, box: { x: box.x, y: box.y, w: box.w, h: box.h } };
   });
   return { zoneTemplate: next };
+}
+
+/**
+ * Кадрирование мокапов из редактора владельца (tshirt/crops.json):
+ * {"<id модели>": {x,y,w,h}} в долях картинки. Битые записи молча выбрасываем —
+ * такая модель просто останется без кадрирования, а не сломает конструктор.
+ */
+export function applyCropsOverride(crops) {
+  if (!crops || typeof crops !== 'object' || Array.isArray(crops)) return {};
+  const out = {};
+  for (const [id, v] of Object.entries(crops)) {
+    const ok = validateCrop(v);
+    if (ok) out[id] = ok;
+  }
+  return out;
 }

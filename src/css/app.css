@@ -150,6 +150,9 @@ body {
    у базовых белый, у оверсайза серый). Лёгкий градиент повторяет студийный фон с фото. */
 .stage__canvas {
   position: relative; display: block; line-height: 0; width: 100%;
+  /* Кадрирование мокапа (клиент 30.07): картинка увеличивается transform-ом от центра кадра,
+     лишнее по краям обрезается здесь. Без overflow серые поля вылезали бы за сцену. */
+  overflow: hidden;
   background: linear-gradient(180deg, #8f8e8c 0%, #9d9c9a 6%, #9d9c9a 94%, #8f8e8c 100%);
   border-radius: 6px;
   overflow: hidden;

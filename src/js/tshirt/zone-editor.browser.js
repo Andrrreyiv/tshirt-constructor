@@ -5,7 +5,8 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730f';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260730g';
+import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260730g';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -24,6 +25,9 @@ class TshirtZoneEditor {
     this.nonce = null;
     this.statusEl = null;
     this.armed = new WeakSet();
+    this.cropMode = false;   // правим кадр мокапа, а не зону печати
+    this.cropEl = null;
+    this.cropBtn = null;
   }
 
   mount() {
@@ -34,6 +38,7 @@ class TshirtZoneEditor {
     this.app.render = (...args) => {
       const r = origRender(...args);
       this.armAll();
+      if (this.cropMode) this.showCropRect();
       return r;
     };
     this.armAll();
@@ -81,7 +86,17 @@ class TshirtZoneEditor {
       this.mkButton('Отменить правки', 'rgba(255,255,255,0.18)', () => window.location.reload())
     );
 
-    bar.append(title, hint, status, row);
+    // Вторая строка: кадрирование мокапа (клиент 30.07 на видео: «не знаю, как увеличить
+    // размеры футболки»). Режет серые поля вокруг изделия, сам файл не трогает.
+    const cropRow = document.createElement('div');
+    Object.assign(cropRow.style, { display: 'flex', gap: '8px' });
+    this.cropBtn = this.mkButton('Кадрировать мокап', 'rgba(224,122,31,0.92)', () => this.toggleCrop());
+    cropRow.append(
+      this.cropBtn,
+      this.mkButton('Весь мокап', 'rgba(255,255,255,0.18)', () => this.resetCrop())
+    );
+
+    bar.append(title, hint, status, row, cropRow);
     document.body.append(bar);
   }
 
@@ -201,6 +216,153 @@ class TshirtZoneEditor {
     });
   }
 
+  // ── Кадрирование мокапа ───────────────────────────────────────────────────
+  // Пока правим кадр, картинку показываем ЦЕЛИКОМ: иначе владелец не увидит, что режет.
+  // Поэтому app._suppressCrop временно отключает кадр у покупательской отрисовки.
+
+  cropOf(formId) {
+    const crops = this.app.config.crops || {};
+    return crops[formId] || FULL_CROP;
+  }
+
+  toggleCrop() {
+    this.cropMode = !this.cropMode;
+    this.app._suppressCrop = this.cropMode;
+    if (this.cropBtn) this.cropBtn.textContent = this.cropMode ? 'Готово с кадром' : 'Кадрировать мокап';
+    this.app.buildZones();
+    this.app.render();
+    this.armAll();
+    if (this.cropMode) {
+      this.showCropRect();
+      this.setStatus('Тяните оранжевую рамку, за угол — размер. Зона печати должна остаться внутри.');
+    } else {
+      this.hideCropRect();
+      this.setStatus('Кадр применён, не забудьте сохранить.');
+    }
+  }
+
+  resetCrop() {
+    const form = this.app.currentForm();
+    if (!form) return;
+    const crops = this.app.config.crops || (this.app.config.crops = {});
+    delete crops[form.id];
+    this.app.buildZones();
+    this.app.render();
+    this.armAll();
+    if (this.cropMode) this.showCropRect();
+    this.setStatus('Кадр снят, показан весь мокап. Не забудьте сохранить.');
+  }
+
+  hideCropRect() {
+    if (this.cropEl && this.cropEl.parentElement) this.cropEl.remove();
+    this.cropEl = null;
+  }
+
+  showCropRect() {
+    this.hideCropRect();
+    const stage = document.querySelector('.stage__canvas');
+    const form = this.app.currentForm();
+    if (!stage || !form) return;
+    const crop = this.cropOf(form.id);
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      position: 'absolute', boxSizing: 'border-box',
+      border: '2px solid #e07a1f', boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
+      cursor: 'move', zIndex: '50'
+    });
+    const grip = document.createElement('div');
+    Object.assign(grip.style, {
+      position: 'absolute', right: '-9px', bottom: '-9px', width: '18px', height: '18px',
+      borderRadius: '50%', background: '#e07a1f', border: '2px solid #fff',
+      cursor: 'nwse-resize', zIndex: '51'
+    });
+    box.append(grip);
+    stage.append(box);
+    this.cropEl = box;
+    this.setCropStyle(crop);
+
+    this.wireCropDrag(box, stage);
+    this.wireCropResize(grip, box, stage);
+  }
+
+  setCropStyle(crop) {
+    if (!this.cropEl) return;
+    Object.assign(this.cropEl.style, {
+      left: crop.x * 100 + '%', top: crop.y * 100 + '%',
+      width: crop.w * 100 + '%', height: crop.h * 100 + '%'
+    });
+  }
+
+  /** Зоны текущей модели в долях всего мокапа — кадр обязан их вместить. */
+  zoneBoxes() {
+    return (this.app.config.zoneTemplate || []).map((z) => this.app.zoneFor(z.view))
+      .filter(Boolean).map((z) => z.box);
+  }
+
+  /** Записать кадр, если он не режет зону печати. Иначе оставить прежний и сказать почему. */
+  commitCrop(crop) {
+    const form = this.app.currentForm();
+    if (!form) return;
+    if (!cropFitsZones(crop, this.zoneBoxes())) {
+      this.setCropStyle(this.cropOf(form.id));
+      this.setStatus('Так нельзя: кадр обрезает зону печати. Минимум — по её границам.', false);
+      return;
+    }
+    const crops = this.app.config.crops || (this.app.config.crops = {});
+    if (isFullCrop(crop)) delete crops[form.id];
+    else crops[form.id] = crop;
+    this.setStatus('Кадр изменён, не забудьте сохранить.');
+  }
+
+  wireCropDrag(box, stage) {
+    box.addEventListener('pointerdown', (e) => {
+      if (e.target !== box) return;
+      const r = stage.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      e.preventDefault();
+      const form = this.app.currentForm();
+      const start = { x: e.clientX, y: e.clientY };
+      const c0 = this.cropOf(form.id);
+      let crop = c0;
+      const move = (ev) => {
+        crop = moveCrop(c0, (ev.clientX - start.x) / r.width, (ev.clientY - start.y) / r.height);
+        this.setCropStyle(crop);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        this.commitCrop(crop);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  wireCropResize(grip, box, stage) {
+    grip.addEventListener('pointerdown', (e) => {
+      const r = stage.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const form = this.app.currentForm();
+      const c0 = this.cropOf(form.id);
+      const startX = e.clientX;
+      let crop = c0;
+      const move = (ev) => {
+        crop = scaleCrop(c0, c0.w + (ev.clientX - startX) / r.width);
+        this.setCropStyle(crop);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        this.commitCrop(crop);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
   /** Сохраняем ВЗРОСЛУЮ зону: детская выводится из неё автоматически. */
   async save() {
     if (!this.nonce) {
@@ -220,7 +382,8 @@ class TshirtZoneEditor {
     }
     try {
       const body = new URLSearchParams({
-        action: 'jetron_ts_zones', nonce: this.nonce, zones: JSON.stringify(zones)
+        action: 'jetron_ts_zones', nonce: this.nonce, zones: JSON.stringify(zones),
+        crops: JSON.stringify(this.app.config.crops || {})
       });
       const res = await fetch(AJAX_URL, { method: 'POST', credentials: 'include', body });
       const json = await res.json();
