@@ -5,8 +5,8 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731b';
-import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731b';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731c';
+import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731c';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
