@@ -39,8 +39,16 @@ function jetron_ts_load($file) {
 }
 
 function jetron_ts_save($file, $data) {
+    // serialize_precision на хостинге стоит 17, и round($v, 4) всё равно уходил в файл как
+    // 0.20000000000000001110223024625... Значение верное, но файл распухает и не читается
+    // глазами. -1 включает кратчайшую запись, которая обратно разбирается в то же число.
+    $prev = @ini_get('serialize_precision');
+    @ini_set('serialize_precision', '-1');
     $json = wp_json_encode(empty($data) ? new stdClass() : $data,
         JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($prev !== false) {
+        @ini_set('serialize_precision', $prev);
+    }
     return file_put_contents(jetron_ts_path($file), $json, LOCK_EX);
 }
 
