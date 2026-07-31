@@ -163,9 +163,7 @@
       "png",
       "jpeg",
       "jpg",
-      "svg",
-      "webp"
-    ],
+      "webp"],
     "compressOverMB": 2,
     "maxDimension": 2000,
     "quality": 0.85
