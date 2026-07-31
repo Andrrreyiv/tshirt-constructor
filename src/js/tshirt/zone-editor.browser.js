@@ -5,8 +5,8 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731a';
-import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731a';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731b';
+import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731b';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -72,7 +72,7 @@ class TshirtZoneEditor {
     Object.assign(title.style, { fontWeight: '600', fontSize: '14px' });
 
     const hint = document.createElement('div');
-    hint.textContent = 'Тяните рамку, чтобы переместить, за круг в углу — чтобы изменить размер. Пропорции 40×50 держатся сами.';
+    hint.textContent = 'Рамка на футболке — это зона печати: тяните её, чтобы переместить, за круг в углу — чтобы изменить размер (пропорции 40×50 держатся сами). Чтобы сама футболка стала крупнее, нажмите «Увеличить футболку».';
     Object.assign(hint.style, { opacity: '0.85', fontSize: '12px' });
 
     const status = document.createElement('div');
@@ -90,10 +90,12 @@ class TshirtZoneEditor {
     // размеры футболки»). Режет серые поля вокруг изделия, сам файл не трогает.
     const cropRow = document.createElement('div');
     Object.assign(cropRow.style, { display: 'flex', gap: '8px' });
-    this.cropBtn = this.mkButton('Кадрировать мокап', 'rgba(224,122,31,0.92)', () => this.toggleCrop());
+    // Названия — словами клиента. «Кадрировать мокап» ему ничего не говорило: он искал,
+    // как увеличить футболку, и не связывал это с кадрированием.
+    this.cropBtn = this.mkButton('Увеличить футболку', 'rgba(224,122,31,0.92)', () => this.toggleCrop());
     cropRow.append(
       this.cropBtn,
-      this.mkButton('Весь мокап', 'rgba(255,255,255,0.18)', () => this.resetCrop())
+      this.mkButton('Показать целиком', 'rgba(255,255,255,0.18)', () => this.resetCrop())
     );
 
     bar.append(title, hint, status, row, cropRow);
@@ -129,10 +131,14 @@ class TshirtZoneEditor {
       frameEl.style.cursor = 'move';
 
       const grip = document.createElement('div');
+      // Внутри рамки, а не снаружи: у .stage__canvas стоит overflow:hidden, и маркер,
+      // вынесенный за край, срезается вместе с рамкой, если зону подвинуть к краю сцены.
+      // Ровно на этом ловился маркер кадра (см. showCropRect).
       Object.assign(grip.style, {
-        position: 'absolute', right: '-9px', bottom: '-9px', width: '18px', height: '18px',
+        position: 'absolute', right: '3px', bottom: '3px', width: '20px', height: '20px',
         borderRadius: '50%', background: '#2f6fe0', border: '2px solid #fff',
-        cursor: 'nwse-resize', zIndex: '40'
+        boxShadow: '0 1px 5px rgba(0,0,0,0.45)', cursor: 'nwse-resize', zIndex: '40',
+        touchAction: 'none'
       });
       frameEl.append(grip);
 
@@ -228,13 +234,13 @@ class TshirtZoneEditor {
   toggleCrop() {
     this.cropMode = !this.cropMode;
     this.app._suppressCrop = this.cropMode;
-    if (this.cropBtn) this.cropBtn.textContent = this.cropMode ? 'Готово с кадром' : 'Кадрировать мокап';
+    if (this.cropBtn) this.cropBtn.textContent = this.cropMode ? 'Готово' : 'Увеличить футболку';
     this.app.buildZones();
     this.app.render();
     this.armAll();
     if (this.cropMode) {
       this.showCropRect();
-      this.setStatus('Тяните оранжевую рамку, за угол — размер. Зона печати должна остаться внутри.');
+      this.setStatus('Тяните оранжевый кружок ⤡ в правом нижнем углу ВНУТРЬ — футболка станет крупнее. Саму рамку можно двигать.');
     } else {
       this.hideCropRect();
       this.setStatus('Кадр применён, не забудьте сохранить.');
@@ -271,11 +277,25 @@ class TshirtZoneEditor {
       border: '2px solid #e07a1f', boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
       cursor: 'move', zIndex: '50'
     });
+    // ⚠️ Маркер держим ВНУТРИ рамки. Раньше он висел на `right/bottom: -9px`, то есть снаружи,
+    // а стартовый кадр равен всему мокапу — и `overflow:hidden` у .stage__canvas его срезал.
+    // Замер на боевом 31.07: маркер выходил за правый и нижний край сцены на 7 px каждый,
+    // от круга 18 px в углу оставался кусочек ~11 px, поверх скруглённого угла и на тёмно-сером
+    // фоне. Технически ухватить можно, НАЙТИ практически нельзя — и это ровно то состояние,
+    // с которого начинает каждая модель. Клиент писал дважды: «не знаю, как увеличить размеры
+    // футболки» (30.07) и «не понимаю, за что двигать, она не двигается» (31.07).
+    // Прошлый замер «механика исправна» был верен и потому бесполезен: события слались
+    // программно по координатам, то есть проверяли обработчик, а не находимость маркера.
     const grip = document.createElement('div');
+    grip.textContent = '⤡';
+    grip.title = 'Тяните внутрь, чтобы приблизить футболку';
     Object.assign(grip.style, {
-      position: 'absolute', right: '-9px', bottom: '-9px', width: '18px', height: '18px',
-      borderRadius: '50%', background: '#e07a1f', border: '2px solid #fff',
-      cursor: 'nwse-resize', zIndex: '51'
+      position: 'absolute', right: '4px', bottom: '4px', width: '26px', height: '26px',
+      borderRadius: '50%', background: '#e07a1f', border: '3px solid #fff',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.5)', cursor: 'nwse-resize', zIndex: '51',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', font: '700 15px/1 system-ui, sans-serif', userSelect: 'none',
+      touchAction: 'none'
     });
     box.append(grip);
     stage.append(box);
