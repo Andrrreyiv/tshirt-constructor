@@ -1,14 +1,14 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260801a';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260801a';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260801a';
-import { applyZonesOverride, applyCropsOverride, applyStageOverride } from './tshirt/AdminOverrides.js?v=20260801a';
-import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260801a';
+import { validateConfig } from './core/ConfigLoader.js?v=20260801c';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260801c';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260801c';
+import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZonesOverride } from './tshirt/AdminOverrides.js?v=20260801c';
+import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260801c';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
-const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260801a';
+const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260801c';
 
 async function boot() {
   const res = await fetch(CONFIG_URL);
@@ -27,7 +27,14 @@ async function boot() {
   // Зона печати, поправленная владельцем в редакторе (/tshirt/?zones=edit).
   try {
     const zres = await fetch('zones.json', { cache: 'no-store' });
-    if (zres.ok) Object.assign(config, applyZonesOverride(config, await zres.json()));
+    if (zres.ok) {
+      const saved = await zres.json();
+      Object.assign(config, applyZonesOverride(config, saved));
+      // Детская зона правится отдельно от взрослой (клиент 01.08). Нет записи —
+      // она по-прежнему выводится из взрослой по сантиметрам.
+      const child = applyChildZonesOverride(saved);
+      if (child) config.childZones = child;
+    }
   } catch { /* зону не правили */ }
 
   // Кадрирование мокапов из того же редактора: {"<id модели>": {x,y,w,h}} в долях картинки.
@@ -62,7 +69,7 @@ async function boot() {
   // панель покажет только загрузку своего файла.
   let manifest = null;
   try {
-    const mres = await fetch('src/config/prints-manifest.json?v=20260801a');
+    const mres = await fetch('src/config/prints-manifest.json?v=20260801c');
     if (mres.ok) manifest = await mres.json();
     // Категории и картинки, заведённые владельцем в админке, перекрывают базовую библиотеку.
     const pres = await fetch('prints.json', { cache: 'no-store' });

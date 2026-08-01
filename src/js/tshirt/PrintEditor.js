@@ -3,8 +3,8 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
-import { fitBoxInFrame } from './BoxFit.js?v=20260801a';
-import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260801a';
+import { fitBoxInFrame } from './BoxFit.js?v=20260801c';
+import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260801c';
 
 export class PrintEditor {
   /**
@@ -107,12 +107,46 @@ export class PrintEditor {
   }
 
   /** Добавить текстовый слой. */
-  addText({ text, color, fontId = null }) {
+  /**
+   * Добавить текстовый слой. Возвращает id — по нему текст потом правится на лету.
+   * ⚠️ silent — для набора без кнопки «Добавить»: onChange перестраивает ВСЮ панель,
+   * а вместе с ней и поле ввода, поэтому фокус слетал бы после первой же буквы
+   * (замер: узел поля менялся на каждом символе). Цену в этом режиме обновляет
+   * вызывающая сторона.
+   */
+  addText({ text, color, fontId = null, silent = false }) {
     const side = this.getSide();
     const d = { id: uid(), kind: 'text', text, color, fontId, fx: 0.1, fy: 0.42, fw: 0.8, fh: 0.16 };
     this.layers.add(side, d);
     if (this.frameEl) this._renderLayer(d);
-    this.onChange();
+    if (!silent) this.onChange();
+    return d.id;
+  }
+
+  /**
+   * Обновить текст уже лежащего слоя, НЕ пересоздавая его. Клиент 01.08: «убрать
+   * кнопочку добавить… как только он начал что-то печатать, автоматически всё
+   * переносится на футболку, и он сразу видит, что печатает». Пересборка слоя на
+   * каждый символ сбрасывала бы фокус в поле ввода, поэтому правим существующий узел.
+   */
+  updateTextLayer(id, text) {
+    const d = this.layers.list(this.getSide()).find((x) => x.id === id);
+    if (!d || (d.kind ?? 'print') !== 'text') return false;
+    d.text = text;
+    const body = d._el && d._el.querySelector('.pf-text__body');
+    if (body) body.textContent = text;
+    this._applyTextSize(d);
+    return true;
+  }
+
+  /** Убрать слой по id (пустое поле ввода — надписи на футболке быть не должно). */
+  removeLayer(id, { silent = false } = {}) {
+    const side = this.getSide();
+    const d = this.layers.list(side).find((x) => x.id === id);
+    if (!d) return false;
+    this.layers.remove(side, d);
+    if (d._el) d._el.remove();
+    if (!silent) this.onChange();
     return true;
   }
 

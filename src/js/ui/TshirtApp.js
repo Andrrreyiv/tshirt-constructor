@@ -3,20 +3,20 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801a';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801a';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260801a';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260801a';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260801a';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260801a';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801a';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801a';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260801a';
-import { Recolor } from '../tshirt/Recolor.js?v=20260801a';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801a';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801a';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801a';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801a';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801c';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801c';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260801c';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260801c';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260801c';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260801c';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801c';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801c';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260801c';
+import { Recolor } from '../tshirt/Recolor.js?v=20260801c';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801c';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801c';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801c';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801c';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -37,6 +37,8 @@ export class TshirtApp {
     };
 
     this.state.textInput = '';
+    // id надписи, которая правится прямо во время набора (клиент 01.08, без кнопки «Добавить»)
+    this.state.liveTextId = null;
     this.state.textColor = '#111111';
 
     // Доменные модули (фаза 1 активна).
@@ -71,9 +73,17 @@ export class TshirtApp {
       : adultCm;
     this.zones = {};
     for (const src of this.config.zoneTemplate) {
-      // Владелец правит коробку для взрослой зоны, детская выводится от центра.
+      // Владелец правит коробку для взрослой зоны; детская выводится от центра,
+      // ЕСЛИ он не задал её отдельно. Клиент 01.08: «в детской не могу увеличить
+      // квадрат» — раньше она жёстко считалась как 30/40 от взрослой и потолок был
+      // непреодолим. Своя сохранённая детская коробка теперь побеждает.
       const adultBox = alignBoxToCm(src.box, adultCm, stageAspect);
-      const box = ageCm === adultCm ? adultBox : deriveBox(adultBox, adultCm, ageCm);
+      const ownChild = this.state.age === 'child' && this.config.childZones
+        ? this.config.childZones[src.view]
+        : null;
+      const box = ageCm === adultCm
+        ? adultBox
+        : (ownChild ? alignBoxToCm(ownChild, ageCm, stageAspect) : deriveBox(adultBox, adultCm, ageCm));
       const zone = { ...src, box: alignBoxToCm(box, ageCm, stageAspect), cm: { ...ageCm } };
       this.zones[zone.view] = zone;
       // Рамка живёт над кадрированной картинкой, поэтому её координаты — от видимой части.
@@ -478,23 +488,18 @@ export class TshirtApp {
     input.placeholder = 'Добавить текст';
     input.value = this.state.textInput;
     input.setAttribute('aria-label', 'Текст надписи');
-    input.addEventListener('input', () => {
-      this.state.textInput = input.value;
-      add.hidden = input.value.trim() === '';
-    });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.addText(); });
-
-    const add = el('button', 'design-row__add', 'Добавить');
-    add.type = 'button';
-    add.hidden = (this.state.textInput || '').trim() === '';
-    add.addEventListener('click', () => this.addText());
+    // Клиент 01.08: «убрать кнопочку добавить, она очень сильно сужает поле… как только
+    // он начал что-то печатать, автоматически всё переносится на футболку, и он сразу
+    // видит, что печатает». Кнопки больше нет, надпись живёт прямо во время набора.
+    input.addEventListener('input', () => this.liveText(input.value));
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
     const badge = el('button', 'text-badge');
     badge.type = 'button';
     badge.setAttribute('aria-expanded', String(this.state.textOptsOpen === true));
     badge.append(el('span', 'text-badge__dot'), document.createTextNode('Шрифт и цвет'));
 
-    row.append(input, add, badge);
+    row.append(input, badge);
     field.append(row);
 
     const opts = el('div', 'text-opts');
@@ -544,14 +549,38 @@ export class TshirtApp {
     return this.state.fontId ?? this.config.fonts?.[0]?.id ?? null;
   }
 
-  addText() {
-    const text = (this.state.textInput || '').trim();
-    if (!text) return;
+  /**
+   * Надпись во время набора: первый символ создаёт слой, дальше правится тот же,
+   * пустое поле убирает надпись с футболки. Клиент 01.08 просил убрать кнопку
+   * «Добавить» и показывать текст сразу.
+   *
+   * ⚠️ Панель здесь НЕ перерисовывается целиком: renderPanel() пересоздал бы поле
+   * ввода, и фокус слетал бы на каждом символе. Обновляем только сам слой и цену.
+   */
+  liveText(value) {
+    this.state.textInput = value;
     const editor = this.activeEditor();
     if (!editor) return;
-    editor.addText({ text, color: this.state.textColor, fontId: this.currentFontId() });
-    this.state.textInput = '';
-    this.render();
+    const text = value.trim();
+
+    if (!text) {
+      if (this.state.liveTextId) {
+        editor.removeLayer(this.state.liveTextId, { silent: true });
+        this.state.liveTextId = null;
+      }
+      this.updatePrice();
+      return;
+    }
+    if (this.state.liveTextId && editor.updateTextLayer(this.state.liveTextId, text)) {
+      this.updatePrice();
+      return;
+    }
+    // Слоя ещё нет (или он остался на другой стороне) — заводим новый.
+    const id = editor.addText({
+      text, color: this.state.textColor, fontId: this.currentFontId(), silent: true,
+    });
+    this.state.liveTextId = typeof id === 'string' ? id : null;
+    this.updatePrice();
   }
 
   /** Принт, уже положенный на активную сторону — он и показывается миниатюрой в строке. */

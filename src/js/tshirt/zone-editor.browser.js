@@ -5,9 +5,9 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260801a';
-import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260801a';
-import { clampStageWidth, widthFromDrag, DEFAULT_STAGE_WIDTH } from './StageWidth.js?v=20260801a';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260801c';
+import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260801c';
+import { clampStageWidth, widthFromDrag, DEFAULT_STAGE_WIDTH } from './StageWidth.js?v=20260801c';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -167,10 +167,21 @@ class TshirtZoneEditor {
     });
   }
 
-  /** Правим шаблон и просим приложение пересобрать зоны — как при старте. */
+  /**
+   * Правим шаблон и просим приложение пересобрать зоны — как при старте.
+   * ⚠️ В ДЕТСКОМ режиме пишем в отдельную детскую коробку. Раньше натянутое значение
+   * уходило во взрослый шаблон, а детская выводилась из него умножением на 30/40,
+   * поэтому рамка откатывалась на четверть назад: замер на боевом — тянешь до 0.5,
+   * получаешь 0.375. Клиент 01.08: «не могу увеличить вот этот квадрат».
+   */
   applyBox(view, box) {
-    const tpl = this.app.config.zoneTemplate.find(z => z.view === view);
-    if (tpl) tpl.box = box;
+    if (this.app.state.age === 'child') {
+      const cz = this.app.config.childZones || (this.app.config.childZones = {});
+      cz[view] = box;
+    } else {
+      const tpl = this.app.config.zoneTemplate.find(z => z.view === view);
+      if (tpl) tpl.box = box;
+    }
     this.app.buildZones();
     this.app.render();
     this.armAll();
@@ -513,6 +524,20 @@ class TshirtZoneEditor {
       zones[tpl.view] = alignBoxToCm(tpl.box, adultCm, stageAspect);
     }
     try {
+      // Детские зоны уходят в том же zones.json под ключом child (клиент 01.08).
+      const childCfg = this.app.config.childZones;
+      if (childCfg) {
+        const byAgeCfg = (this.app.config.frame && this.app.config.frame.byAge) || {};
+        const childCm = {
+          w: (byAgeCfg.child && byAgeCfg.child.wCm) || 30,
+          h: (byAgeCfg.child && byAgeCfg.child.hCm) || 40
+        };
+        const child = {};
+        for (const view of Object.keys(childCfg)) {
+          child[view] = alignBoxToCm(childCfg[view], childCm, stageAspect);
+        }
+        zones.child = child;
+      }
       const body = new URLSearchParams({
         action: 'jetron_ts_zones', nonce: this.nonce, zones: JSON.stringify(zones),
         crops: JSON.stringify(this.app.config.crops || {}),

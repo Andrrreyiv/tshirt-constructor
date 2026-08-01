@@ -209,6 +209,33 @@ add_action('wp_ajax_jetron_ts_zones', function () {
     if (!count($clean)) {
         wp_send_json_error(array('message' => 'Нет ни одной корректной зоны.'), 400);
     }
+    // Детские зоны (клиент 01.08: «в детской не могу увеличить квадрат»). Раньше детская
+    // всегда выводилась из взрослой по сантиметрам, и увеличить её было нельзя. Теперь
+    // она правится отдельно и лежит в том же файле под ключом child. Раздел необязательный.
+    if (isset($raw['child']) && is_array($raw['child'])) {
+        $child = array();
+        foreach ($raw['child'] as $view => $box) {
+            $view = sanitize_key($view);
+            if (!in_array($view, array('front', 'back'), true) || !is_array($box)) {
+                continue;
+            }
+            $out = array();
+            $bad = false;
+            foreach (array('x', 'y', 'w', 'h') as $k) {
+                if (!isset($box[$k]) || !is_numeric($box[$k])) { $bad = true; break; }
+                $out[$k] = round(min(max((float) $box[$k], 0), 1), 4);
+            }
+            if ($bad || $out['w'] <= 0 || $out['h'] <= 0) {
+                continue;
+            }
+            $out['x'] = round(min($out['x'], 1 - $out['w']), 4);
+            $out['y'] = round(min($out['y'], 1 - $out['h']), 4);
+            $child[$view] = $out;
+        }
+        if (count($child)) {
+            $clean['child'] = $child;
+        }
+    }
     if (jetron_ts_save('zones.json', $clean) === false) {
         wp_send_json_error(array('message' => 'Не удалось записать файл.'), 500);
     }

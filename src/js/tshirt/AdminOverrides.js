@@ -6,8 +6,8 @@
 // конструктор остаётся на базовом конфиге и не падает.
 // Цена САМОГО ИЗДЕЛИЯ здесь не участвует — она приходит из карточки товара WooCommerce.
 
-import { validateCrop } from './Crop.js?v=20260801a';
-import { validateStageWidth } from './StageWidth.js?v=20260801a';
+import { validateCrop } from './Crop.js?v=20260801c';
+import { validateStageWidth } from './StageWidth.js?v=20260801c';
 
 export function applyTshirtAdmin(config, admin) {
   const out = clone(config);
@@ -93,6 +93,27 @@ function clone(v) {
  * Зона печати из редактора владельца (tshirt/zones.json): {front:{x,y,w,h}, back:{...}}.
  * Битая или пустая запись игнорируется — остаёмся на конфиге.
  */
+/**
+ * Детские зоны печати из того же zones.json (ключ "child"). Клиент 01.08 на видео:
+ * «в детской я не могу увеличить вот этот квадрат… во взрослой большой на всю футболку,
+ * а в детской почему-то маленький». Раньше детская ВСЕГДА выводилась из взрослой
+ * умножением на отношение сантиметров (30/40), и увеличить её было нельзя в принципе.
+ * Теперь владелец правит её отдельно; нет записи — старое поведение сохраняется.
+ */
+export function applyChildZonesOverride(zones) {
+  const src = zones && typeof zones === 'object' && !Array.isArray(zones) ? zones.child : null;
+  if (!src || typeof src !== 'object' || Array.isArray(src)) return null;
+  const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+  const out = {};
+  for (const view of ['front', 'back']) {
+    const b = src[view];
+    if (!b || !num(b.x) || !num(b.y) || !num(b.w) || !num(b.h)) continue;
+    if (b.w <= 0 || b.h <= 0) continue;
+    out[view] = { x: b.x, y: b.y, w: b.w, h: b.h };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export function applyZonesOverride(config, zones) {
   const tpl = Array.isArray(config.zoneTemplate) ? config.zoneTemplate : [];
   if (!zones || typeof zones !== 'object' || !tpl.length) return { zoneTemplate: tpl };
