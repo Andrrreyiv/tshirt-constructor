@@ -7,6 +7,7 @@
 
 import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731d';
 import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731d';
+import { clampStageWidth, widthFromDrag, DEFAULT_STAGE_WIDTH } from './StageWidth.js?v=20260731d';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -28,6 +29,8 @@ class TshirtZoneEditor {
     this.cropMode = false;   // правим кадр мокапа, а не зону печати
     this.cropEl = null;
     this.cropBtn = null;
+    this.widthHandle = null;   // ручка ширины поля на правом крае сцены
+    this.widthLabel = null;
   }
 
   mount() {
@@ -42,6 +45,7 @@ class TshirtZoneEditor {
       return r;
     };
     this.armAll();
+    this.mountWidthHandle();
     this.fetchNonce();
   }
 
@@ -383,6 +387,114 @@ class TshirtZoneEditor {
     });
   }
 
+
+  // ── Ширина поля с футболкой ────────────────────────────────────────────────
+  // Клиент 01.08: «мне нужно вот это поле… увеличить прямо до краёв», и он хотел
+  // именно ТЯНУТЬ. Кадрирование этого дать не может: оно режет поля вокруг изделия,
+  // а их всего ~1.25x запаса, дальше срезает рукава. Здесь растягивается сама сцена.
+
+  appEl() {
+    return document.getElementById('app');
+  }
+
+  currentStageWidth() {
+    const cfg = this.app.config.stage;
+    if (cfg && Number.isFinite(Number(cfg.width))) return clampStageWidth(cfg.width);
+    const el = this.appEl();
+    // Ширина из CSS, пока владелец ничего не менял.
+    const css = el ? parseFloat(getComputedStyle(el).maxWidth) : NaN;
+    return Number.isFinite(css) ? css : DEFAULT_STAGE_WIDTH;
+  }
+
+  applyStageWidth(px) {
+    const el = this.appEl();
+    if (el) el.style.maxWidth = px + 'px';
+    if (this.widthLabel) this.widthLabel.textContent = px + ' px';
+    // Рамки зон живут в процентах, но пересборка нужна: сцена сменила размер.
+    this.app.render();
+    this.armAll();
+    this.positionWidthHandle();
+  }
+
+  /** Ручка на правом крае поля: вертикальная полоса, её видно и она подписана. */
+  mountWidthHandle() {
+    const h = document.createElement('div');
+    Object.assign(h.style, {
+      position: 'absolute', zIndex: '60', width: '26px', borderRadius: '13px',
+      background: 'rgba(47,111,224,0.95)', border: '2px solid #fff',
+      boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+      cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', font: '600 13px/1 system-ui, sans-serif', userSelect: 'none',
+      touchAction: 'none'
+    });
+    h.textContent = '⟷';
+    h.title = 'Тяните вбок — поле с футболкой станет шире или уже';
+
+    const label = document.createElement('div');
+    Object.assign(label.style, {
+      position: 'absolute', zIndex: '60', padding: '4px 8px', borderRadius: '7px',
+      background: 'rgba(20,41,76,0.92)', color: '#fff',
+      font: '600 12px/1 system-ui, sans-serif', pointerEvents: 'none', whiteSpace: 'nowrap'
+    });
+    this.widthLabel = label;
+    this.widthHandle = h;
+    document.body.append(h, label);
+    label.textContent = Math.round(this.currentStageWidth()) + ' px';
+
+    this.wireWidthDrag(h);
+    this.positionWidthHandle();
+    window.addEventListener('resize', () => this.positionWidthHandle());
+    window.addEventListener('scroll', () => this.positionWidthHandle(), { passive: true });
+  }
+
+  /** Держим ручку у правого края сцены. Координаты страничные, потому что элемент в body. */
+  positionWidthHandle() {
+    const stage = document.getElementById('stage');
+    if (!stage || !this.widthHandle) return;
+    const r = stage.getBoundingClientRect();
+    if (!r.width) return;
+    const top = r.top + window.scrollY;
+    const height = Math.max(80, Math.min(r.height, 160));
+    Object.assign(this.widthHandle.style, {
+      left: (r.right + window.scrollX - 13) + 'px',
+      top: (top + r.height / 2 - height / 2) + 'px',
+      height: height + 'px',
+    });
+    Object.assign(this.widthLabel.style, {
+      left: (r.right + window.scrollX - 30) + 'px',
+      top: (top + r.height / 2 + height / 2 + 8) + 'px',
+    });
+  }
+
+  wireWidthDrag(handle) {
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // ⚠️ Захват указателя — попытка, а не обязанность: setPointerCapture кидает
+      // NotFoundError, если указателя с таким id уже нет, и раньше это молча обрывало
+      // обработчик ДО навешивания move, то есть ручка просто не тянулась.
+      try { handle.setPointerCapture(e.pointerId); } catch { /* потянем и без захвата */ }
+      const startX = e.clientX;
+      const startWidth = this.currentStageWidth();
+      // Слушаем на window, как перетаскивание рамки зоны: курсор во время тяги
+      // уходит за узкую ручку, и события на самом элементе теряются.
+      const move = (ev) => {
+        const px = widthFromDrag(startWidth, ev.clientX - startX);
+        const stage = this.app.config.stage || (this.app.config.stage = {});
+        stage.width = px;
+        this.applyStageWidth(px);
+      };
+      const up = () => {
+        try { handle.releasePointerCapture(e.pointerId); } catch { /* не захватывали */ }
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        this.setStatus('Ширина поля изменена, не забудьте сохранить.');
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
   /** Сохраняем ВЗРОСЛУЮ зону: детская выводится из неё автоматически. */
   async save() {
     if (!this.nonce) {
@@ -403,7 +515,9 @@ class TshirtZoneEditor {
     try {
       const body = new URLSearchParams({
         action: 'jetron_ts_zones', nonce: this.nonce, zones: JSON.stringify(zones),
-        crops: JSON.stringify(this.app.config.crops || {})
+        crops: JSON.stringify(this.app.config.crops || {}),
+        // Ширина поля уходит тем же сохранением, что зоны и кадры (клиент 01.08).
+        stage: JSON.stringify(this.app.config.stage || {})
       });
       const res = await fetch(AJAX_URL, { method: 'POST', credentials: 'include', body });
       const json = await res.json();

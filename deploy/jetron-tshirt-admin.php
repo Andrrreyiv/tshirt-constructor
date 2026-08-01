@@ -244,7 +244,23 @@ add_action('wp_ajax_jetron_ts_zones', function () {
         wp_send_json_error(array('message' => 'Зоны сохранены, а кадры нет: файл не записался.'), 500);
     }
 
-    wp_send_json_success(array('saved' => array_keys($clean), 'crops' => count($crops)));
+    // Ширина поля с футболкой (клиент 01.08: «мне нужно вот это поле увеличить прямо
+    // до краёв»). Приходит тем же сохранением. Диапазон повторяет StageWidth.js на фронте:
+    // уже 1000 сцену съедает панель, шире 2000 строка ведёт глаз слишком далеко.
+    // Раздел необязательный: его отсутствие не должно ломать сохранение зон.
+    $stage_raw = json_decode(wp_unslash($_POST['stage'] ?? ''), true);
+    $stage = array();
+    if (is_array($stage_raw) && isset($stage_raw['width']) && is_numeric($stage_raw['width'])) {
+        $w = (int) round((float) $stage_raw['width']);
+        if ($w >= 1000 && $w <= 2000) {
+            $stage = array('width' => $w);
+        }
+    }
+    if (jetron_ts_save('stage.json', $stage) === false) {
+        wp_send_json_error(array('message' => 'Зоны сохранены, а ширина поля нет: файл не записался.'), 500);
+    }
+
+    wp_send_json_success(array('saved' => array_keys($clean), 'crops' => count($crops), 'stage' => $stage));
 });
 
 /** Пункт меню в админке. */

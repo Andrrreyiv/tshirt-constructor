@@ -7,6 +7,7 @@
 // Цена САМОГО ИЗДЕЛИЯ здесь не участвует — она приходит из карточки товара WooCommerce.
 
 import { validateCrop } from './Crop.js?v=20260731d';
+import { validateStageWidth } from './StageWidth.js?v=20260731d';
 
 export function applyTshirtAdmin(config, admin) {
   const out = clone(config);
@@ -118,4 +119,13 @@ export function applyCropsOverride(crops) {
     if (ok) out[id] = ok;
   }
   return out;
+}
+
+/**
+ * Ширина поля с футболкой из stage.json (клиент 01.08: «увеличить прямо до краёв»).
+ * Мусор и выход за диапазон дают null — конструктор молча остаётся на ширине из CSS.
+ */
+export function applyStageOverride(stage) {
+  const width = validateStageWidth(stage);
+  return width === null ? null : { width };
 }

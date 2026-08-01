@@ -4,7 +4,7 @@
 import { validateConfig } from './core/ConfigLoader.js?v=20260731d';
 import { TshirtApp } from './ui/TshirtApp.js?v=20260731d';
 import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260731d';
-import { applyZonesOverride, applyCropsOverride } from './tshirt/AdminOverrides.js?v=20260731d';
+import { applyZonesOverride, applyCropsOverride, applyStageOverride } from './tshirt/AdminOverrides.js?v=20260731d';
 import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260731d';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
@@ -36,6 +36,20 @@ async function boot() {
     const cres = await fetch('crops.json', { cache: 'no-store' });
     if (cres.ok) config.crops = applyCropsOverride(await cres.json());
   } catch { /* мокапы не кадрировали */ }
+
+  // Ширина поля с футболкой, выставленная владельцем ручкой в редакторе (клиент 01.08:
+  // «мне нужно вот это поле… увеличить прямо до краёв»). Файла нет — остаёмся на CSS.
+  try {
+    const sres = await fetch('stage.json', { cache: 'no-store' });
+    if (sres.ok) {
+      const stage = applyStageOverride(await sres.json());
+      if (stage) {
+        config.stage = stage;
+        const appEl = document.getElementById('app');
+        if (appEl) appEl.style.maxWidth = stage.width + 'px';
+      }
+    }
+  } catch { /* ширину не меняли */ }
 
   const { ok, errors } = validateConfig(config);
   if (!ok) {
