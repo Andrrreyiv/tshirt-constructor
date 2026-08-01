@@ -3,20 +3,20 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260731e';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260731e';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260731e';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260731e';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260731e';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260731e';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260731e';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260731e';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260731e';
-import { Recolor } from '../tshirt/Recolor.js?v=20260731e';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260731e';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260731e';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260731e';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260731e';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801a';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801a';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260801a';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260801a';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260801a';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260801a';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801a';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801a';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260801a';
+import { Recolor } from '../tshirt/Recolor.js?v=20260801a';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801a';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801a';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801a';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801a';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -285,33 +285,35 @@ export class TshirtApp {
     // Заголовка «Конструктор футболок» и подзаголовка в макете клиента 30.07 нет:
     // название есть на самой странице сайта, в панели оно только съедало высоту.
     // Изделие — секция без заголовка, как в макете.
+    // Клиент 01.08 (голос): «без разделов блоков, без отдельно добавить дизайн,
+    // без надписей, без подписей, без всего, вот один в один… там заголовки эти все
+    // убрать, объединить блок, где добавить дизайн у нас отдельным блоком идёт».
+    // Поэтому изделие и дизайн живут в ОДНОЙ карточке и без единой подписи.
     const product = section();
     // Таблица размеров живёт ВНУТРИ серого блока линейки (клиент 30.07: «серый блок увеличить
     // вниз чуть-чуть и туда вставить эти взрослые размеры, а то они очень много места занимают
     // и всё у нас ползает вниз»). Отдельным полем она распирала панель при каждом раскрытии.
-    product.append(this.segField('Размерная линейка',
+    product.append(this.segField(null,
       [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
       this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); },
       this.sizesField()));
-    product.append(this.segField('Тип футболки', this.typeOptions(),
+    product.append(this.segField(null, this.typeOptions(),
       this.state.type, v => this.pickType(v)));
-    product.append(this.segField('Плотность ткани',
+    product.append(this.segField(null,
       c.densities.map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
       this.state.densityG, v => { this.state.densityG = Number(v); this.render(); }));
     // Превью сторон и выбор стороны: в макете клиента они идут сразу под плотностью.
     product.append(this.sidePreviewField());
-    this.panelEl.append(product);
 
     // Дизайн: принт, затем надпись, затем метод нанесения — порядок из макета клиента.
     // Подпись «до N принтов на сторону» убрана 30.07: в макете её нет, а потолок
     // и так виден по сообщению при попытке добавить третий принт.
-    const printSec = section('Добавить дизайн');
-    printSec.append(this.libraryField());
-    printSec.append(this.textField());
-    printSec.append(this.segField('Метод нанесения',
+    product.append(this.libraryField());
+    product.append(this.textField());
+    product.append(this.segField(null,
       Object.entries(c.prices.print.methods).map(([id, m]) => ({ value: id, label: m.label })),
       this.state.printMethod, v => { this.state.printMethod = v; this.render(); }));
-    this.panelEl.append(printSec);
+    this.panelEl.append(product);
 
     // Итог заказа + CTA
     this.panelEl.append(this.orderField());
@@ -377,8 +379,8 @@ export class TshirtApp {
     }
     field.append(row);
 
-    // Переключатель под превью — дублирует выбор, как в макете.
-    field.append(this.segField('Сторона нанесения',
+    // Переключатель под превью — дублирует выбор, как в макете. Без подписи (клиент 01.08).
+    field.append(this.segField(null,
       this.config.sides.map(s => ({ value: s.id, label: s.label })),
       this.state.side, v => { this.state.side = v; this.render(); }));
     return field;
@@ -399,7 +401,7 @@ export class TshirtApp {
   /** Липкая карточка «Итог заказа»: изделие, нанесения по сторонам, разбивка, CTA. */
   orderField() {
     const order = this.currentOrder();
-    const sec = section('Итог заказа');
+    const sec = section();
     sec.classList.add('price-box');
 
     const p = order.product;
@@ -599,9 +601,14 @@ export class TshirtApp {
    * Поле-сегмент. Необязательный extra кладётся ВНУТРЬ серого контейнера под кнопками:
    * так таблица размеров не распирает панель, а разворачивается внутри блока (клиент 30.07).
    */
+  /**
+   * Ряд кнопок-переключателей. Подпись НЕОБЯЗАТЕЛЬНА: клиент 01.08 попросил панель
+   * «без разделов блоков, без надписей, без подписей, без всего, вот один в один»
+   * по своему макету, поэтому подписи полей больше не выводятся.
+   */
   segField(label, options, active, onPick, extra = null) {
     const field = el('div', 'field');
-    field.append(el('div', 'field__label', label));
+    if (label) field.append(el('div', 'field__label', label));
     const seg = el('div', 'seg' + (extra ? ' seg--stack' : ''));
     const row = extra ? el('div', 'seg__row') : seg;
     for (const opt of options) {
