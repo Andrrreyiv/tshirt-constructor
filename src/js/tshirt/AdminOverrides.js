@@ -6,7 +6,7 @@
 // конструктор остаётся на базовом конфиге и не падает.
 // Цена САМОГО ИЗДЕЛИЯ здесь не участвует — она приходит из карточки товара WooCommerce.
 
-import { validateCrop } from './Crop.js?v=20260731c';
+import { validateCrop } from './Crop.js?v=20260731d';
 
 export function applyTshirtAdmin(config, admin) {
   const out = clone(config);

@@ -1,14 +1,14 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260731c';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260731c';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260731c';
-import { applyZonesOverride, applyCropsOverride } from './tshirt/AdminOverrides.js?v=20260731c';
-import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260731c';
+import { validateConfig } from './core/ConfigLoader.js?v=20260731d';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260731d';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260731d';
+import { applyZonesOverride, applyCropsOverride } from './tshirt/AdminOverrides.js?v=20260731d';
+import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260731d';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
-const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260731c';
+const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260731d';
 
 async function boot() {
   const res = await fetch(CONFIG_URL);
@@ -48,7 +48,7 @@ async function boot() {
   // панель покажет только загрузку своего файла.
   let manifest = null;
   try {
-    const mres = await fetch('src/config/prints-manifest.json?v=20260731c');
+    const mres = await fetch('src/config/prints-manifest.json?v=20260731d');
     if (mres.ok) manifest = await mres.json();
     // Категории и картинки, заведённые владельцем в админке, перекрывают базовую библиотеку.
     const pres = await fetch('prints.json', { cache: 'no-store' });
