@@ -742,6 +742,19 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 .libm__cell--dark { background: #2b2f36; }
 .libm__cell:hover { border-color: var(--brand); transform: translateY(-2px); }
 .libm__thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* Клиент 01.08: «чтобы нельзя было открыть принт в новом окне и скачать, правая кнопка
+   чтобы не работала». Перетаскивание и выделение картинок отключены здесь, правая кнопка —
+   в TshirtApp. ⚠️ Это замедлитель, а не защита: адрес файла всё равно виден в инструментах
+   разработчика. Настоящая защита в том, что браузеру отдаётся ПРЕВЬЮ 467×600, а не оригинал
+   3111×4000 — перепечатать с него нельзя. */
+.stage__img, .stage__canvas img, .pf-print__img, .sideprev__img, .sideprev__print,
+.libm__thumb, .design-row__thumb {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .libm__more {
   /* Страховка на случай неверно помеченного тона: неприметная, но всегда доступна. */
   grid-column: 1 / -1; justify-self: center; margin-top: 4px;

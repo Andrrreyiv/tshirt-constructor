@@ -6,7 +6,7 @@
 // (клиент 28.07: «нам надо зеркально сделать»).
 // Сверху окна — загрузка своего файла, с перетаскиванием.
 
-import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260801c';
+import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260801d';
 
 export class LibraryPanel {
   /**

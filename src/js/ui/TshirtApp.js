@@ -3,21 +3,22 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801c';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801c';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260801c';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260801c';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260801c';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260801c';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801c';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801c';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260801c';
-import { Recolor } from '../tshirt/Recolor.js?v=20260801c';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801c';
-import { colorTone } from '../tshirt/PrintTone.js?v=20260801c';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801c';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801c';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801c';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801d';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801d';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260801d';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260801d';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260801d';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260801d';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801d';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801d';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260801d';
+import { Recolor } from '../tshirt/Recolor.js?v=20260801d';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801d';
+import { colorTone } from '../tshirt/PrintTone.js?v=20260801d';
+import { sidesToExport } from '../tshirt/MockupExport.js?v=20260801d';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801d';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801d';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801d';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -56,6 +57,7 @@ export class TshirtApp {
   }
 
   start() {
+    this._guardImages();
     this.buildZones();
     this.render();
   }
@@ -590,6 +592,28 @@ export class TshirtApp {
     return prints.length ? prints[prints.length - 1].src : null;
   }
 
+  /**
+   * Замедлитель против сохранения принта: правая кнопка и перетаскивание на картинках
+   * конструктора. Клиент 01.08 просил «чтобы никаких возможностей скачать принт не было».
+   * ⚠️ Честно: это НЕ защита. Адрес файла виден в инструментах разработчика, и обойти
+   * можно за десять секунд. Настоящая защита уже стоит и работает иначе: браузеру отдаётся
+   * превью 467×600, тогда как оригинал 3111×4000 лежит только на сервере, и перепечатать
+   * с превью нельзя. Вешаем на document один раз, чтобы не плодить слушателей на перерисовках.
+   */
+  _guardImages() {
+    if (this._imgGuardOn) return;
+    this._imgGuardOn = true;
+    const SEL = '.stage__img, .pf-print__img, .sideprev__img, .sideprev__print, .libm__thumb, .design-row__thumb';
+    document.addEventListener('contextmenu', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest(SEL)) e.preventDefault();
+    });
+    document.addEventListener('dragstart', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest(SEL)) e.preventDefault();
+    });
+  }
+
   libraryField() {
     const field = el('div', 'field');
     const libEl = el('div', 'lib');
@@ -701,10 +725,20 @@ export class TshirtApp {
   // собираем вручную: мокап в натуральную величину, поверх принты и надписи по тем же
   // долям, что и на экране (printBoxOnMockup — та же математика, что в превью сторон).
   async downloadMockup() {
+    // Клиент 01.08: «сделал принт только на груди, а скачалась картинка и с грудью, и со
+    // спиной… зачем ему спина». Берём только те стороны, на которых что-то есть. Если пусто
+    // везде (покупатель ничего не добавил), отдаём активную сторону — иначе кнопка молча
+    // ничего не делает и выглядит сломанной.
+    const wanted = sidesToExport(
+      this.config.sides,
+      (id) => this.layers.list(id).length > 0,
+      this.state.side
+    );
+
     const sides = [];
-    for (const side of this.config.sides) {
+    for (const side of wanted) {
       const c = await this._composeSide(side.id);
-      if (c) sides.push({ label: side.label, canvas: c });
+      if (c) sides.push({ label: side.label, id: side.id, canvas: c });
     }
     if (!sides.length) return;
 
@@ -728,7 +762,11 @@ export class TshirtApp {
     }
 
     const form = this.currentForm();
-    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? ''].filter(Boolean).join('-');
+    // В имя файла добавляем сторону, когда она одна: у печатника не должно быть вопросов,
+    // грудь это или спина, если покупатель прислал два файла из разных заходов.
+    const sidePart = sides.length === 1 ? sides[0].id : '';
+    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? '', sidePart]
+      .filter(Boolean).join('-');
     const a = document.createElement('a');
     a.download = name + '.png';
     a.href = out.toDataURL('image/png');
