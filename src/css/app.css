@@ -742,6 +742,14 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 .libm__cell--dark { background: #2b2f36; }
 .libm__cell:hover { border-color: var(--brand); transform: translateY(-2px); }
 .libm__thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+.libm__more {
+  /* Страховка на случай неверно помеченного тона: неприметная, но всегда доступна. */
+  grid-column: 1 / -1; justify-self: center; margin-top: 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 13px; text-decoration: underline; padding: 8px 12px;
+}
+.libm__more:hover { color: var(--brand); }
+
 .libm__empty { grid-column: 1 / -1; color: var(--muted); font-size: 14px; padding: 20px 0; }
 
 .libm__cats {

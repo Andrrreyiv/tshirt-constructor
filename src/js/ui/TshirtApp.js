@@ -14,6 +14,7 @@ import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801c';
 import { QualityHint } from '../tshirt/QualityHint.js?v=20260801c';
 import { Recolor } from '../tshirt/Recolor.js?v=20260801c';
 import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801c';
+import { colorTone } from '../tshirt/PrintTone.js?v=20260801c';
 import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801c';
 import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801c';
 import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801c';
@@ -592,6 +593,11 @@ export class TshirtApp {
   libraryField() {
     const field = el('div', 'field');
     const libEl = el('div', 'lib');
+    // Библиотека показывает принты под цвет выбранного изделия (клиент 01.08). Тон сообщаем
+    // здесь, а не в обработчике свотча: сюда попадаем при КАЖДОЙ перерисовке, поэтому смена
+    // цвета любым путём (свотч, смена фасона со сбросом цвета) учитывается одинаково.
+    const color = (this.config.colors || []).find(x => x.id === this.state.colorId);
+    this.library.setTone(colorTone(color));
     // Клиент 28.07: библиотека вынесена в отдельное окно, в панели только строка вызова.
     // Подсказки под строкой в макете 30.07 нет — сторона видна по выделенному превью
     // и переключателю «Сторона нанесения» прямо над блоком.

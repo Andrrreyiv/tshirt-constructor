@@ -504,10 +504,15 @@ function jetron_ts_handle() {
                 $errors[] = $file['name'] . ': ' . $path['error'];
                 continue;
             }
+            $up_tone = sanitize_key(wp_unslash($_POST['print_tone'] ?? 'light'));
+            if (!in_array($up_tone, array('light', 'dark', 'any'), true)) {
+                $up_tone = 'light';
+            }
             $cats[$pos]['items'][] = array(
                 'id'   => $slug . '-' . substr(md5($path . microtime()), 0, 6),
                 'file' => $path,
-                'dark' => !empty($_POST['print_dark']),
+                'tone' => $up_tone,
+                'dark' => ($up_tone === 'dark'),
             );
             $added++;
         }
@@ -525,24 +530,27 @@ function jetron_ts_handle() {
         return array('ok', $msg);
     }
 
-    if ($action === 'print_flip') {
-        // Клиент 30.07: «как мне в админке теперь добавить этот тёмный принт или оставить
-        // его белым? Не могу найти». Раньше признак писался ТОЛЬКО при загрузке и сразу
-        // на всю пачку, изменить его можно было лишь перезалив файл.
-        $slug  = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
-        $id    = sanitize_text_field(wp_unslash($_POST['print_id'] ?? ''));
+    if ($action === 'print_tone') {
+        // Клиент 01.08: «есть принты третьей категории, которые туда и туда». Раньше признак
+        // был галочкой тёмный/светлый, теперь три состояния. Старое значение `dark` пишем
+        // рядом, чтобы вкладка со старой сборкой из кеша продолжала показывать то же самое.
+        $slug = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $id   = sanitize_text_field(wp_unslash($_POST['print_id'] ?? ''));
+        $tone = sanitize_key(wp_unslash($_POST['print_tone'] ?? ''));
+        if (!in_array($tone, array('light', 'dark', 'any'), true)) {
+            return array('error', 'Неизвестный тон принта.');
+        }
         $cats  = jetron_ts_categories();
         $found = false;
-        $now   = false;
         foreach ($cats as &$c) {
             if (($c['slug'] ?? '') !== $slug) {
                 continue;
             }
             foreach ($c['items'] as &$i) {
                 if (($i['id'] ?? '') === $id) {
-                    $i['dark'] = empty($i['dark']);
-                    $now       = $i['dark'];
-                    $found     = true;
+                    $i['tone'] = $tone;
+                    $i['dark'] = ($tone === 'dark');
+                    $found = true;
                 }
             }
             unset($i);
@@ -551,9 +559,10 @@ function jetron_ts_handle() {
         if (!$found) {
             return array('error', 'Принт не найден, обновите страницу.');
         }
+        $names = array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых');
         return jetron_ts_save('prints.json', array('categories' => $cats)) === false
             ? array('error', 'Не удалось записать настройки.')
-            : array('ok', 'Принт помечен как ' . ($now ? 'тёмный' : 'светлый') . '.');
+            : array('ok', 'Принт помечен: ' . $names[$tone] . '.');
     }
 
     if ($action === 'print_del') {
@@ -875,16 +884,28 @@ function jetron_ts_tab_prints($nonce) {
             echo '</div>';
             // Подпись и переключатель: до 30.07 признак был виден только по цвету подложки,
             // и клиент его не считывал («как узнать, какой я поставил пометку»).
-            $is_dark = !empty($item['dark']);
-            echo '<div style="font-size:11px;margin:3px 0 1px;color:' . ($is_dark ? '#3c434a' : '#787c82') . '">'
-               . ($is_dark ? 'для тёмной футболки' : 'для светлой футболки') . '</div>';
-            echo '<form method="post" style="margin-bottom:2px">';
+            // Три состояния (клиент 01.08). Старая запись без `tone` читается по `dark`,
+            // поэтому размётка, сделанная руками до 01.08, остаётся в силе.
+            $tone = isset($item['tone']) ? $item['tone'] : (!empty($item['dark']) ? 'dark' : 'light');
+            if (!in_array($tone, array('light', 'dark', 'any'), true)) {
+                $tone = !empty($item['dark']) ? 'dark' : 'light';
+            }
+            $tone_names = array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых');
+            echo '<div style="font-size:11px;margin:3px 0 1px;color:'
+               . ($tone === 'dark' ? '#3c434a' : ($tone === 'any' ? '#2271b1' : '#787c82')) . '">'
+               . esc_html($tone_names[$tone]) . '</div>';
+            echo '<form method="post" style="margin-bottom:2px;display:flex;gap:4px;justify-content:center">';
             echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<input type="hidden" name="jetron_ts_action" value="print_flip">';
+            echo '<input type="hidden" name="jetron_ts_action" value="print_tone">';
             echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
             echo '<input type="hidden" name="print_id" value="' . esc_attr($item['id'] ?? '') . '">';
-            echo '<button type="submit" class="button-link" style="font-size:12px">'
-               . ($is_dark ? 'сделать светлым' : 'сделать тёмным') . '</button>';
+            foreach (array('light' => 'свет', 'dark' => 'тёмн', 'any' => 'оба') as $key => $short) {
+                $on = ($tone === $key);
+                echo '<button type="submit" name="print_tone" value="' . esc_attr($key) . '" '
+                   . 'class="button-link" style="font-size:11px;'
+                   . ($on ? 'font-weight:700;text-decoration:none;color:#1d2327;cursor:default' : '')
+                   . '"' . ($on ? ' disabled' : '') . '>' . esc_html($short) . '</button>';
+            }
             echo '</form>';
             echo '<form method="post" onsubmit="return confirm(&quot;Убрать этот принт из библиотеки?&quot;)">';
             echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
@@ -901,10 +922,18 @@ function jetron_ts_tab_prints($nonce) {
         echo '<input type="hidden" name="jetron_ts_action" value="print_add">';
         echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
         echo '<input type="file" name="print_file[]" accept=".png,.jpg,.jpeg,.webp" multiple required> ';
-        echo '<label style="margin:0 10px"><input type="checkbox" name="print_dark" value="1"> тёмные принты</label> ';
+        echo '<span style="margin:0 10px">';
+        foreach (array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых') as $key => $label) {
+            echo '<label style="margin-right:8px"><input type="radio" name="print_tone" value="'
+               . esc_attr($key) . '"' . ($key === 'light' ? ' checked' : '') . '> ' . esc_html($label) . '</label>';
+        }
+        echo '</span>';
         submit_button('Загрузить принты', 'secondary', 'submit', false);
         echo '<p class="description" style="margin:6px 0 0">Можно выбрать сразу несколько файлов: '
-           . 'Ctrl (⌘) или Shift в окне выбора. Галочка «тёмные» применится ко всей пачке.</p>';
+           . 'Ctrl (⌘) или Shift в окне выбора. Выбранная пометка применится ко всей пачке.<br>'
+           . '<b>«Для любых» — это про прозрачный фон, а не про красоту.</b> Если у картинки фон '
+           . 'залит белым, на чёрной футболке получится белый прямоугольник. Проверка простая: '
+           . 'положите принт на чёрное, и если вокруг него появилось светлое поле — он не универсальный.</p>';
         echo '</form>';
 
         echo '<form method="post" style="margin-top:6px" '

@@ -6,6 +6,8 @@
 // (клиент 28.07: «нам надо зеркально сделать»).
 // Сверху окна — загрузка своего файла, с перетаскиванием.
 
+import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260801c';
+
 export class LibraryPanel {
   /**
    * @param {object} config — tshirt-mock-config
@@ -17,6 +19,37 @@ export class LibraryPanel {
     this.categories = manifest?.categories ?? [];
     this.activeSlug = ALL_SLUG;
     this.overlay = null;
+    // Тон выбранного изделия. null = отбор не применяем (тон ещё не сообщили).
+    this.tone = null;
+    // Покупатель нажал «показать остальные» — временно снимаем отбор до смены цвета.
+    this.showAll = false;
+  }
+
+  /**
+   * Сообщить тон выбранного изделия. Вызывается при выборе цвета футболки.
+   * Смена цвета сбрасывает «показать остальные»: иначе выбрал чёрную, раскрыл всё,
+   * вернулся на белую — и отбор молча не работает.
+   */
+  setTone(tone) {
+    if (tone === this.tone) return;
+    this.tone = tone;
+    this.showAll = false;
+    // Активная категория могла исчезнуть после отбора — не оставляем окно пустым.
+    if (!this.categoryList().some((c) => c.slug === this.activeSlug)) {
+      this.activeSlug = ALL_SLUG;
+    }
+  }
+
+  /** Категории с учётом отбора по тону. Источник для всех остальных методов. */
+  visibleCategories() {
+    if (!this.tone || this.showAll) return this.categories;
+    return filterCategories(this.categories, this.tone);
+  }
+
+  /** Сколько картинок сейчас спрятано отбором. */
+  hiddenNow() {
+    if (!this.tone || this.showAll) return 0;
+    return hiddenCount(this.categories, this.tone);
   }
 
   get hasLibrary() {
@@ -25,20 +58,20 @@ export class LibraryPanel {
 
   /** Все принты одним списком — для категории «Все картинки». */
   allItems() {
-    return this.categories.flatMap(c => c.items);
+    return this.visibleCategories().flatMap(c => c.items);
   }
 
   /** Принты выбранной категории (ALL_SLUG — все). */
   itemsOf(slug) {
     if (slug === ALL_SLUG) return this.allItems();
-    return this.categories.find(c => c.slug === slug)?.items ?? [];
+    return this.visibleCategories().find(c => c.slug === slug)?.items ?? [];
   }
 
   /** Категории для списка в окне: «Все картинки» + папки манифеста. */
   categoryList() {
     return [
       { slug: ALL_SLUG, label: 'Все картинки', count: this.allItems().length },
-      ...this.categories.map(c => ({ slug: c.slug, label: c.label, count: c.items.length }))
+      ...this.visibleCategories().map(c => ({ slug: c.slug, label: c.label, count: c.items.length }))
     ];
   }
 
@@ -128,7 +161,12 @@ export class LibraryPanel {
         grid.append(mk('div', 'libm__empty', 'В этой категории пока нет картинок.'));
       }
       for (const item of items) {
-        const cell = mk('button', 'libm__cell' + (item.dark ? ' libm__cell--dark' : ''));
+        // Тёмная подложка плитки: у принта для тёмных всегда, у универсального — когда
+        // выбрано тёмное изделие. Так покупатель видит картинку в том окружении,
+        // в котором она и напечатается.
+        const t = printTone(item);
+        const onDark = t === DARK || (t === ANY && this.tone === DARK);
+        const cell = mk('button', 'libm__cell' + (onDark ? ' libm__cell--dark' : ''));
         cell.type = 'button';
         const img = mk('img', 'libm__thumb');
         img.src = item.file;
@@ -138,6 +176,27 @@ export class LibraryPanel {
         cell.addEventListener('click', () => { onPick(item.file); this.closeModal(); });
         grid.append(cell);
       }
+
+      // Клиент 01.08 просил показывать только подходящие. Ссылку оставляем как страховку:
+      // принт, помеченный не тем тоном, иначе пропал бы с сайта совсем и заметили бы нескоро.
+      const hidden = this.hiddenNow();
+      if (hidden > 0) {
+        const more = mk('button', 'libm__more', 'Показать остальные (' + hidden + ')');
+        more.type = 'button';
+        more.title = 'Принты, рассчитанные на другой цвет футболки';
+        more.addEventListener('click', () => { this.showAll = true; paint(); });
+        grid.append(more);
+      } else if (this.showAll && this.tone) {
+        const less = mk('button', 'libm__more', 'Показать только подходящие');
+        less.type = 'button';
+        less.addEventListener('click', () => {
+          this.showAll = false;
+          if (!this.categoryList().some((c) => c.slug === this.activeSlug)) this.activeSlug = ALL_SLUG;
+          paint();
+        });
+        grid.append(less);
+      }
+
       cats.innerHTML = '';
       for (const c of this.categoryList()) {
         const row = mk('button', 'libm__cat' + (c.slug === this.activeSlug ? ' libm__cat--active' : ''));
