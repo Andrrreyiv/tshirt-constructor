@@ -3,20 +3,20 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260731d';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260731d';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260731d';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260731d';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260731d';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260731d';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260731d';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260731d';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260731d';
-import { Recolor } from '../tshirt/Recolor.js?v=20260731d';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260731d';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260731d';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260731d';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260731d';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260731e';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260731e';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260731e';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260731e';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260731e';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260731e';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260731e';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260731e';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260731e';
+import { Recolor } from '../tshirt/Recolor.js?v=20260731e';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260731e';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260731e';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260731e';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260731e';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
