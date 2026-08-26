@@ -49,3 +49,28 @@ test('refreshTextStyle применяет новый цвет к уже нари
   assert.equal(body.style.color, '#e11d48');
   assert.equal(body.style.fontFamily, textFontFamily('oswald'));
 });
+
+// Клиент 26.08: «на футболке удаляю смирнов, а в поле текст слово смирнов остаётся».
+// Редактор не знает про поле ввода, поэтому обязан доложить наверх, ЧТО именно убрали.
+test('крестик снимает слой и докладывает наверх, какой именно', () => {
+  const layers = new LayerManager(2);
+  const d = { id: 't1', kind: 'text', text: 'Смирнов' };
+  layers.add('front', d);
+
+  const removed = [];
+  let repriced = 0;
+  const editor = new PrintEditor({
+    frame: null, scaler: null, layers,
+    getSide: () => 'front', getMethod: () => 'dtf',
+    onChange: () => { repriced += 1; },
+    onRemove: (x) => removed.push(x),
+  });
+
+  let unmounted = 0;
+  editor._deleteLayer(d, { remove: () => { unmounted += 1; } });
+
+  assert.deepEqual(layers.list('front'), [], 'дескриптор убран');
+  assert.equal(unmounted, 1, 'узел снят со сцены');
+  assert.deepEqual(removed, [d], 'наверх ушёл сам дескриптор');
+  assert.equal(repriced, 1, 'цена пересчитана');
+});

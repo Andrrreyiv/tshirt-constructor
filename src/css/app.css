@@ -657,17 +657,17 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   box-shadow: var(--sh-sm);
 }
 .text-badge:hover { color: var(--brand); }
+/* Галочка внутри точки — как в макете клиента. Клиент 26.08 (голос 11-10-14): «галочка
+   внутри зелёного кружочка, она смещена, вы можете её по центру сделать». Прежняя
+   версия рисовалась двумя бордюрами со сдвигом left/top в пикселях и поворотом на 45°:
+   у повёрнутого прямоугольника габарит не равен собственному, поэтому попасть в центр
+   такими сдвигами нельзя в принципе. Теперь это SVG в фоне: ломаная симметрична внутри
+   viewBox 12×12 (x 3…9, y 3.8…8.2 — центр ровно 6;6), а `center` центрирует её сам. */
 .text-badge__dot {
   width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
-  background: var(--success);
-  position: relative;
-}
-/* Галочка внутри точки — как в макете клиента. */
-.text-badge__dot::after {
-  content: ''; position: absolute;
-  left: 3.5px; top: 3px; width: 4px; height: 2px;
-  border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff;
-  transform: rotate(-45deg);
+  background: var(--success)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6 5.1 8.2 9 3.8' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 9px 9px no-repeat;
 }
 
 /* Раскрытый выбор шрифта и цвета надписи. */
@@ -682,8 +682,13 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 }
 .font-opt:hover { border-color: var(--brand); background: #fff; }
 .font-opt--active { border-color: var(--brand); background: var(--brand-soft); }
-/* Образец нарисован самим шрифтом — выбирают глазами, а не по названию. */
-.font-opt__sample { font-size: 20px; line-height: 1.2; }
+/* Образец нарисован самим шрифтом — выбирают глазами, а не по названию.
+   ⚠️ Цвет ВСЕГДА тёмный и цвету надписи на футболке не подчиняется. Клиент 26.08
+   (голос 11-05-58): «сделал футболку чёрный и поменял шрифт на белый цвет… где поля
+   выбор шрифтов, они стали белыми, их вообще не видно… Они должны быть всегда чёрными.
+   Независимо от того, что выбирает человек на футболку». Список лежит на белой панели,
+   поэтому белая надпись делала его невидимым. */
+.font-opt__sample { font-size: 20px; line-height: 1.2; color: var(--ink); }
 .text-opts__color {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-top: 10px; font-size: 13.5px; color: var(--ink-2);
@@ -829,13 +834,23 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   background: linear-gradient(180deg, #8f8e8c 0%, #9d9c9a 6%, #9d9c9a 94%, #8f8e8c 100%);
 }
 .sideprev__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.sideprev__item { position: absolute; overflow: hidden; }
+/* container-type даёт `cqh` — высоту САМОГО слоя, см. .sideprev__text ниже. */
+.sideprev__item { position: absolute; overflow: hidden; container-type: size; }
 .sideprev__print { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* ⚠️ Миниатюра обязана повторять закон настоящей надписи (PrintEditor._applyTextSize:
+   размер шрифта = высота слоя × 0.6), иначе она врёт про то, что покупатель получит.
+   Клиент 26.08 (голос 11-05-58): «на основной футболке написано смирнов, а на миниатюре
+   написано мирно, первые и последние буквы не отображаются». Причина была ровно в этом:
+   размер стоял `clamp(6px, 2.2vw, 13px)` — он зависел от ширины ЭКРАНА, а не от коробки
+   слоя, поэтому в маленьком превью шрифт оказывался непропорционально крупным и слово
+   не влезало. Первая строка font-size — запасная, для браузеров без единиц контейнера. */
 .sideprev__text {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; line-height: 1;
-  font-size: clamp(6px, 2.2vw, 13px); text-align: center; overflow: hidden;
+  font-family: var(--font-display); font-weight: 700; line-height: 1.05;
+  text-align: center; white-space: nowrap; overflow: hidden;
+  font-size: clamp(6px, 2.2vw, 13px);
+  font-size: 60cqh;
 }
 
 /* ── Детализация заказа (макет клиента 29.07) ──────────────────────────

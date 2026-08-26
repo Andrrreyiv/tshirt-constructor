@@ -20,6 +20,7 @@ import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260825b';
 import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260825b';
 import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260825b';
 import { forcedMethod } from '../tshirt/PrintMethod.js?v=20260825b';
+import { PanelAccordion } from './PanelAccordion.js?v=20260825b';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -36,8 +37,13 @@ export class TshirtApp {
       age: 'adult',      // adult | child
       densityG: (config.densities?.[0]?.g) ?? null,
       printMethod: config.prices?.print?.method ?? 'dtf', // dtf | film
-      sizesOpen: false,
     };
+
+    // Раскрывающиеся поля (шрифты, таблица размеров, детализация) держит один аккордеон:
+    // клиент 26.08 требует, чтобы клик по любому другому полю сворачивал открытое.
+    this.panels = new PanelAccordion();
+    /** @type {Record<string, {root: Element, apply: (open: boolean) => void}>} */
+    this.panelRefs = {};
 
     this.state.textInput = '';
     // id надписи, которая правится прямо во время набора (клиент 01.08, без кнопки «Добавить»)
@@ -60,7 +66,46 @@ export class TshirtApp {
   start() {
     this._guardImages();
     this.buildZones();
+    this._wireAccordion();
     this.render();
+  }
+
+  /**
+   * Зарегистрировать раскрывающееся поле и сразу привести его к состоянию аккордеона.
+   * Панель пересобирается на каждом действии, поэтому раскрытое поле обязано пережить
+   * пересборку, а свёрнутое — не всплыть обратно.
+   */
+  _registerPanel(name, root, apply) {
+    this.panelRefs[name] = { root, apply };
+    apply(this.panels.isOpen(name));
+  }
+
+  /**
+   * Единственный сторож на всю страницу: клик мимо открытого поля его сворачивает.
+   * Клиент 26.08 (голос 11-13-26): «а потом перешёл к другому полю… в любое поле кликнул —
+   * то вот это поле должно сворачиваться… чтобы нам пространство не расширять».
+   *
+   * ⚠️ Фаза ПЕРЕХВАТА, а не всплытия: обработчик самой кнопки обязан сработать ПОСЛЕ нас,
+   * иначе клик по чужой кнопке открыл бы её поле, а мы бы тут же его закрыли.
+   * ⚠️ Подписка вешается ОДИН раз в start(), а не в renderPanel(): панель пересобирается
+   * на каждом действии, и подписки оттуда копились бы десятками.
+   */
+  _wireAccordion(doc = (typeof document === 'undefined' ? null : document)) {
+    if (!doc) return;
+    doc.addEventListener('click', (e) => {
+      const ref = this.panelRefs[this.panels.open];
+      // Кнопка поля лежит внутри его же корня, поэтому клик по ней считается «внутри»:
+      // сворачивать обязан её собственный toggle, иначе выйдет закрыл-и-сразу-открыл.
+      const inside = !!(ref && ref.root && ref.root.contains(e.target));
+      if (this.panels.closeIfOutside(inside)) this._syncPanels();
+    }, true);
+  }
+
+  /** Единственная точка правды: развернуть открытое поле, свернуть все прочие. */
+  _syncPanels() {
+    for (const name of Object.keys(this.panelRefs)) {
+      this.panelRefs[name].apply(this.panels.isOpen(name));
+    }
   }
 
   /**
@@ -184,6 +229,9 @@ export class TshirtApp {
           frame, scaler, layers: this.layers,
           getSide: () => side.id,
           getMethod: () => this.state.printMethod,
+          // Порядок важен: onRemove правит state, и уже ПОСЛЕ него onChange
+          // пересобирает панель — иначе поле ввода отрисовалось бы со старым текстом.
+          onRemove: (d) => this.forgetLayer(d),
           onChange: () => { this.renderPanel(); this.updatePrice(); },
         });
         editor.mount(inner);
@@ -295,6 +343,9 @@ export class TshirtApp {
   renderPanel() {
     const c = this.config;
     this.panelEl.innerHTML = '';
+    // Узлы прежней сборки выброшены — ссылки на них тоже, иначе сторож аккордеона
+    // держал бы уже мёртвый корень и `contains` всегда врал бы «клик снаружи».
+    this.panelRefs = {};
 
     // Заголовка «Конструктор футболок» и подзаголовка в макете клиента 30.07 нет:
     // название есть на самой странице сайта, в панели оно только съедало высоту.
@@ -437,8 +488,18 @@ export class TshirtApp {
     // Детализация: клиент на макете держит её свёрнутой, чтобы панель не разрасталась.
     const details = document.createElement('details');
     details.className = 'order__details';
-    details.open = this.state.detailsOpen ?? false;
-    details.addEventListener('toggle', () => { this.state.detailsOpen = details.open; });
+    // Клиент 26.08: «если он детализацию открыл, а потом пошёл опять нажимать другие
+    // кнопки, то детализация тоже автоматически схлопывается в изначальную строчку».
+    // `<details>` раскрывает сам браузер, поэтому состояние догоняем из события toggle.
+    // Рекурсии нет: apply меняет `open`, только если он и правда другой, а обработчик
+    // на уже согласованном состоянии ничего не делает.
+    this._registerPanel('details', details, (open) => {
+      if (details.open !== open) details.open = open;
+    });
+    details.addEventListener('toggle', () => {
+      if (details.open) { this.panels.openOnly('details'); this._syncPanels(); }
+      else if (this.panels.isOpen('details')) this.panels.toggle('details');
+    });
     const summary = document.createElement('summary');
     summary.className = 'order__details-sum';
     summary.textContent = 'Детализация';
@@ -511,14 +572,12 @@ export class TshirtApp {
 
     const badge = el('button', 'text-badge');
     badge.type = 'button';
-    badge.setAttribute('aria-expanded', String(this.state.textOptsOpen === true));
     badge.append(el('span', 'text-badge__dot'), document.createTextNode('Шрифт и цвет'));
 
     row.append(input, badge);
     field.append(row);
 
     const opts = el('div', 'text-opts');
-    opts.hidden = this.state.textOptsOpen !== true;
     opts.append(this.fontList());
     const colorRow = el('label', 'text-opts__color');
     colorRow.append(el('span', '', 'Цвет надписи'));
@@ -528,10 +587,13 @@ export class TshirtApp {
     // input у пикера летит непрерывно, пока его тянут, поэтому здесь НЕЛЬЗЯ вызывать
     // render(): панель пересоберётся и пикер закроется под рукой. Дескрипторы правим
     // сразу (иначе следующая перерисовка вернёт старый цвет), узлы красим по месту.
+    // ⚠️ Названия шрифтов ЗДЕСЬ НЕ КРАСИМ. Клиент 26.08 (голос 11-05-58): «сделал футболку
+    // чёрный и поменял шрифт на белый цвет… где поля выбор шрифтов, они стали белыми,
+    // их вообще не видно… Они должны быть всегда чёрными. Независимо от того, что
+    // выбирает человек на футболку». Цвет образцов задан в CSS и от state не зависит.
     color.addEventListener('input', () => {
       this.state.textColor = color.value;
       this.restyleTextLayers({ color: color.value });
-      for (const s of opts.querySelectorAll('.font-opt__sample')) s.style.color = color.value;
     });
     // Пикер закрыли — теперь можно пересобрать панель и догнать превью сторон и цену.
     color.addEventListener('change', () => this.render());
@@ -539,10 +601,15 @@ export class TshirtApp {
     opts.append(colorRow);
     field.append(opts);
 
+    // Корень поля — весь `field`: и кнопка, и список шрифтов, и пикер цвета. Клик по
+    // любому из них считается «внутри», а значит выбор шрифта список не захлопывает.
+    this._registerPanel('text', field, (open) => {
+      opts.hidden = !open;
+      badge.setAttribute('aria-expanded', String(open));
+    });
     badge.addEventListener('click', () => {
-      this.state.textOptsOpen = this.state.textOptsOpen !== true;
-      opts.hidden = !this.state.textOptsOpen;
-      badge.setAttribute('aria-expanded', String(this.state.textOptsOpen));
+      this.panels.toggle('text');
+      this._syncPanels();
     });
     return field;
   }
@@ -557,7 +624,8 @@ export class TshirtApp {
       btn.setAttribute('aria-pressed', String(isActive));
       const sample = el('span', 'font-opt__sample', f.name);
       sample.style.fontFamily = textFontFamily(f.id);
-      sample.style.color = this.state.textColor;
+      // Цвет образца НЕ берётся из state.textColor: на белой надписи список пропадал
+      // на белом фоне панели (клиент 26.08). Название шрифта всегда тёмное, из CSS.
       btn.append(sample);
       btn.addEventListener('click', () => {
         this.state.fontId = f.id;
@@ -663,6 +731,23 @@ export class TshirtApp {
     });
     this.state.liveTextId = typeof id === 'string' ? id : null;
     this.updatePrice();
+  }
+
+  /**
+   * Слой убрали крестиком прямо с футболки. Клиент 26.08 (голос): «на футболке удаляю
+   * смирнов, а в поле текст слово смирнов остаётся… пусть это слово тоже удалится»,
+   * причина у него та же, что и у нас: «обратно уже вернуть не можем… оно уже ни к чему».
+   * Принтов это не касается — у них своего поля ввода нет.
+   * @returns {boolean} поле ввода очищено
+   */
+  forgetLayer(d) {
+    if ((d?.kind ?? 'print') !== 'text') return false;
+    // Поле описывает ровно одну надпись — ту, что правится на лету. Крестик на чужой
+    // (она осталась на другой стороне) поле не трогает: там текст ещё жив.
+    if (this.state.liveTextId && this.state.liveTextId !== d.id) return false;
+    this.state.textInput = '';
+    this.state.liveTextId = null;
+    return true;
   }
 
   /** Принт, уже положенный на активную сторону — он и показывается миниатюрой в строке. */
@@ -772,11 +857,9 @@ export class TshirtApp {
 
     const toggle = el('button', 'sizes-toggle');
     toggle.type = 'button';
-    toggle.setAttribute('aria-expanded', String(this.state.sizesOpen));
     toggle.append(el('span', '', 'Таблица размеров'), el('span', 'chev', '▾'));
 
     const body = el('div', 'sizes-body');
-    body.hidden = !this.state.sizesOpen;
 
     const t = el('table', 'sizes-table');
     const thead = el('tr');
@@ -789,10 +872,15 @@ export class TshirtApp {
     }
     body.append(t);
 
+    // Клиент 26.08: «нажал посмотреть, а дальше пошёл кликать другие кнопочки — таблица
+    // размеров тоже должна схлопываться, чтобы нам пространство не расширять».
+    this._registerPanel('sizes', field, (open) => {
+      body.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+    });
     toggle.addEventListener('click', () => {
-      this.state.sizesOpen = !this.state.sizesOpen;
-      body.hidden = !this.state.sizesOpen;
-      toggle.setAttribute('aria-expanded', String(this.state.sizesOpen));
+      this.panels.toggle('sizes');
+      this._syncPanels();
     });
 
     field.append(toggle, body);

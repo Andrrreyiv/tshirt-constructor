@@ -14,11 +14,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TshirtApp } from '../src/js/ui/TshirtApp.js';
 import { LayerManager } from '../src/js/tshirt/LayerManager.js';
+import { PanelAccordion } from '../src/js/ui/PanelAccordion.js';
 
 function appWithText() {
   const app = Object.create(TshirtApp.prototype);
   app.layers = new LayerManager(2);
   app.state = { side: 'front', fontId: 'oswald', textColor: '#111111' };
+  // Поле шрифтов теперь регистрируется в аккордеоне (замечание клиента 26.08),
+  // поэтому заглушке app нужны те же два поля, что заводит конструктор.
+  app.panels = new PanelAccordion();
+  app.panelRefs = {};
   const refreshed = [];
   app.editors = {
     front: { refreshTextStyle: () => refreshed.push('front') },

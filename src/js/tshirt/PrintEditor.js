@@ -8,17 +8,20 @@ import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260825b';
 
 export class PrintEditor {
   /**
-   * @param {{ frame, scaler, layers, getSide, getMethod, onChange }} opts
+   * @param {{ frame, scaler, layers, getSide, getMethod, onChange, onRemove }} opts
    *  frame: PrintFrame · scaler: CmScaler · layers: LayerManager
    *  getSide()/getMethod(): текущая сторона/метод · onChange(): пересчитать цену
+   *  onRemove(d): слой убрали крестиком — панель решает, что подчистить у себя
+   *  (клиент 26.08: удалили надпись с футболки — поле ввода обязано опустеть)
    */
-  constructor({ frame, scaler, layers, getSide, getMethod, onChange }) {
+  constructor({ frame, scaler, layers, getSide, getMethod, onChange, onRemove }) {
     this.frame = frame;
     this.scaler = scaler;
     this.layers = layers;
     this.getSide = getSide;
     this.getMethod = getMethod;
     this.onChange = onChange || (() => {});
+    this.onRemove = onRemove || (() => {});
     this.frameEl = null;
   }
 
@@ -197,9 +200,7 @@ export class PrintEditor {
     this._wireResize(handle, d);
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.layers.remove(this.getSide(), d);
-      wrap.remove();
-      this.onChange();
+      this._deleteLayer(d, wrap);
     });
   }
 
@@ -229,10 +230,20 @@ export class PrintEditor {
     this._wireResize(handle, d, () => this._applyTextSize(d));
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.layers.remove(this.getSide(), d);
-      wrap.remove();
-      this.onChange();
+      this._deleteLayer(d, wrap);
     });
+  }
+
+  /**
+   * Крестик на слое: убрать дескриптор, снять узел и доложить наверх, ЧТО убрали.
+   * Редактор про поле ввода не знает, а панель — знает: клиент 26.08 требует, чтобы
+   * вместе с надписью на футболке опустело и поле «Добавить текст».
+   */
+  _deleteLayer(d, wrap) {
+    this.layers.remove(this.getSide(), d);
+    if (wrap) wrap.remove();
+    this.onRemove(d);
+    this.onChange();
   }
 
   /** Размер шрифта текста ≈ доля высоты рамки в px (реколибруется при reflow). */
