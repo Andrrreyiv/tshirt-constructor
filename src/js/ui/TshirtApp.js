@@ -3,22 +3,23 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260801d';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260801d';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260801d';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260801d';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260801d';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260801d';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260801d';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260801d';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260801d';
-import { Recolor } from '../tshirt/Recolor.js?v=20260801d';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260801d';
-import { colorTone } from '../tshirt/PrintTone.js?v=20260801d';
-import { sidesToExport } from '../tshirt/MockupExport.js?v=20260801d';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260801d';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260801d';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260801d';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260825b';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260825b';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260825b';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260825b';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260825b';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260825b';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260825b';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260825b';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260825b';
+import { Recolor } from '../tshirt/Recolor.js?v=20260825b';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260825b';
+import { colorTone } from '../tshirt/PrintTone.js?v=20260825b';
+import { sidesToExport } from '../tshirt/MockupExport.js?v=20260825b';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260825b';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260825b';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260825b';
+import { forcedMethod } from '../tshirt/PrintMethod.js?v=20260825b';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -323,9 +324,14 @@ export class TshirtApp {
     // и так виден по сообщению при попытке добавить третий принт.
     product.append(this.libraryField());
     product.append(this.textField());
-    product.append(this.segField(null,
-      Object.entries(c.prices.print.methods).map(([id, m]) => ({ value: id, label: m.label })),
-      this.state.printMethod, v => { this.state.printMethod = v; this.render(); }));
+    // Метод нанесения НЕ выбирается: он выведен из того, что покупатель положил на футболку.
+    // Клиент 25.08: «не надо ему выбора такой ошибочный давать… она плёнкой дешевле,
+    // они будут тыкать плёнкой, а потом лишнее объяснять им, что плёнкой не получится».
+    // Гнездо постоянное, содержимое обновляет refreshMethodField(): набор надписи идёт
+    // в тихом режиме и панель целиком не пересобирает.
+    this.methodSlot = el('div', 'method-slot');
+    product.append(this.methodSlot);
+    this.refreshMethodField();
     this.panelEl.append(product);
 
     // Итог заказа + CTA
@@ -399,8 +405,14 @@ export class TshirtApp {
     return field;
   }
 
-  /** Собрать сериализуемый итог заказа из текущего состояния (единый источник цены). */
+  /**
+   * Собрать сериализуемый итог заказа из текущего состояния (единый источник цены).
+   * Метод нанесения догоняется ЗДЕСЬ, а не только в панели: набор надписи идёт в тихом
+   * режиме (панель не пересобирается, чтобы не слетал фокус), и цена иначе считалась бы
+   * по прежнему методу.
+   */
   currentOrder() {
+    this.syncPrintMethod();
     return buildOrder({
       config: this.config,
       state: this.state,
@@ -513,10 +525,16 @@ export class TshirtApp {
     const color = el('input', 'text-opts__picker');
     color.type = 'color'; // U8: полный RGB-пикер, в отличие от цветов изделия
     color.value = this.state.textColor;
+    // input у пикера летит непрерывно, пока его тянут, поэтому здесь НЕЛЬЗЯ вызывать
+    // render(): панель пересоберётся и пикер закроется под рукой. Дескрипторы правим
+    // сразу (иначе следующая перерисовка вернёт старый цвет), узлы красим по месту.
     color.addEventListener('input', () => {
       this.state.textColor = color.value;
+      this.restyleTextLayers({ color: color.value });
       for (const s of opts.querySelectorAll('.font-opt__sample')) s.style.color = color.value;
     });
+    // Пикер закрыли — теперь можно пересобрать панель и догнать превью сторон и цену.
+    color.addEventListener('change', () => this.render());
     colorRow.append(color);
     opts.append(colorRow);
     field.append(opts);
@@ -541,10 +559,71 @@ export class TshirtApp {
       sample.style.fontFamily = textFontFamily(f.id);
       sample.style.color = this.state.textColor;
       btn.append(sample);
-      btn.addEventListener('click', () => { this.state.fontId = f.id; this.render(); });
+      btn.addEventListener('click', () => {
+        this.state.fontId = f.id;
+        this.restyleTextLayers({ fontId: f.id });
+        this.render();
+      });
       box.append(btn);
     }
     return box;
+  }
+
+  /**
+   * Переодеть УЖЕ созданные надписи: сперва дескрипторы (иначе следующая перерисовка
+   * вернёт старое), затем живые узлы обеих сторон по месту.
+   * ⚠️ Клиент 25.08: «я меняю шрифты, а надпись не меняется… только изначально, когда
+   * выбрал шрифт, он тем шрифтом и написал». Возвращает число тронутых надписей.
+   */
+  restyleTextLayers(patch) {
+    const n = this.layers.restyleKind('text', patch);
+    for (const ed of Object.values(this.editors)) {
+      if (ed && typeof ed.refreshTextStyle === 'function') ed.refreshTextStyle();
+    }
+    return n;
+  }
+
+  /**
+   * Догнать метод нанесения содержимым футболки. Возвращает выведенный метод либо null,
+   * если на футболке пусто (тогда состояние не трогаем: цена печати всё равно нулевая).
+   * ⚠️ Клиент 25.08: «не надо ему выбора такой ошибочный давать, она плёнкой дешевле,
+   * они будут тыкать плёнкой, а потом лишнее объяснять им, что это плёнкой не получится».
+   */
+  syncPrintMethod() {
+    const m = forcedMethod({
+      hasPrint: this.layers.hasKind('print'),
+      hasText: this.layers.hasKind('text'),
+    });
+    if (m) this.state.printMethod = m;
+    return m;
+  }
+
+  /**
+   * Поле метода нанесения. Выбора здесь НЕТ: показывается ровно один метод, выведенный
+   * из содержимого футболки. Клиент 25.08: «просто залипшую кнопку плёнкой, и всё,
+   * ничем поменять не может… если он выбрал принт, там кнопку плёнка убираем».
+   */
+  methodField() {
+    const id = this.syncPrintMethod();
+    if (!id) return null; // на пустой футболке печатать нечего
+    const methods = this.config.prices?.print?.methods ?? {};
+    const label = methods[id]?.label ?? id;
+    // onPick пустой: кнопка одна и уже активна, нажимать нечего.
+    return this.segField(null, [{ value: id, label }], id, () => {});
+  }
+
+  /**
+   * Перерисовать ТОЛЬКО поле метода, не трогая остальную панель.
+   * ⚠️ Набор надписи идёт в тихом режиме: renderPanel() пересоздал бы поле ввода и фокус
+   * слетел бы на каждом символе. Без этого обновления покупатель печатал «Маша», цена
+   * становилась плёночной, а строки «Плёнкой» на экране не было до первого клика
+   * по любому другому полю (поймано глазами в браузере 25.08, тесты этого не видели).
+   */
+  refreshMethodField() {
+    const slot = this.methodSlot;
+    if (!slot) return;
+    const field = this.methodField();
+    slot.replaceChildren(...(field ? [field] : []));
   }
 
   /** Выбранный шрифт надписи; по умолчанию первый из конфига. */
@@ -826,6 +905,8 @@ export class TshirtApp {
 
   // ── Цена: единый источник — buildOrder (база U3 + принты U1 + текст U2) ──
   updatePrice() {
+    // Метод нанесения меняется ровно тогда же, когда цена: содержимое футболки задаёт оба.
+    this.refreshMethodField();
     const out = document.getElementById('totalPrice');
     if (!out) return;
     const total = this.currentOrder().price.total;

@@ -77,3 +77,55 @@ test('hasKind по всем сторонам', () => {
   assert.equal(m.hasKind('print'), true);
   assert.equal(m.hasKind('text'), false);
 });
+
+// ── restyleKind ──────────────────────────────────────────────────────────────
+// Клиент 25.08: «я меняю шрифты, а надпись не меняется». Шрифт лежит в дескрипторе
+// слоя и писался только при создании, поэтому смена шрифта не доходила до готовой
+// надписи ни на сцене, ни в превью сторон, ни в заказе.
+
+test('restyleKind меняет шрифт у уже созданной надписи', () => {
+  const m = new LayerManager(2);
+  const t = { id: 't1', kind: 'text', fontId: 'oswald', color: '#111' };
+  m.add('front', t);
+  assert.equal(m.restyleKind('text', { fontId: 'russoone' }), 1);
+  assert.equal(t.fontId, 'russoone');
+});
+
+test('restyleKind достаёт надписи на ОБЕИХ сторонах', () => {
+  const m = new LayerManager(2);
+  const a = { id: 't1', kind: 'text', fontId: 'oswald' };
+  const b = { id: 't2', kind: 'text', fontId: 'oswald' };
+  m.add('front', a);
+  m.add('back', b);
+  assert.equal(m.restyleKind('text', { fontId: 'russoone' }), 2);
+  assert.equal(a.fontId, 'russoone');
+  assert.equal(b.fontId, 'russoone');
+});
+
+test('restyleKind не трогает принты', () => {
+  const m = new LayerManager(2);
+  const p = { id: 'p1', kind: 'print', src: 'a.png' };
+  m.add('front', p);
+  assert.equal(m.restyleKind('text', { fontId: 'russoone' }), 0);
+  assert.equal(p.fontId, undefined);
+});
+
+// Пикер цвета и список шрифтов — разные элементы панели. Патч одного поля не должен
+// затирать другое: TshirtApp передаёт только то, что покупатель реально сменил.
+test('restyleKind: смена только шрифта не сбрасывает цвет', () => {
+  const m = new LayerManager(2);
+  const t = { id: 't1', kind: 'text', fontId: 'oswald', color: '#e11' };
+  m.add('front', t);
+  m.restyleKind('text', { fontId: 'russoone', color: undefined });
+  assert.equal(t.color, '#e11');
+  assert.equal(t.fontId, 'russoone');
+});
+
+test('restyleKind меняет цвет у готовой надписи', () => {
+  const m = new LayerManager(2);
+  const t = { id: 't1', kind: 'text', fontId: 'oswald', color: '#111' };
+  m.add('front', t);
+  assert.equal(m.restyleKind('text', { color: '#e11d48' }), 1);
+  assert.equal(t.color, '#e11d48');
+  assert.equal(t.fontId, 'oswald');
+});

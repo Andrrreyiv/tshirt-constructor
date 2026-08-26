@@ -6,7 +6,25 @@
 // (клиент 28.07: «нам надо зеркально сделать»).
 // Сверху окна — загрузка своего файла, с перетаскиванием.
 
-import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260801d';
+import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260825b';
+
+/**
+ * Куда положить окно библиотеки, когда конструктор стоит в iframe без своей прокрутки.
+ * `box` — рамка iframe в координатах РОДИТЕЛЬСКОЙ страницы, `viewportH` — высота её экрана.
+ *
+ * ⚠️ Клиент 25.08 (видео): «Видишь, ползёт вниз, вот этот экран. Он ползёт, ползёт и он
+ * ползёт до бесконечности». Причина была в `position: absolute`. Абсолютный элемент входит
+ * в `scrollHeight` документа, а скрипт сайта подгоняет высоту iframe под эту же величину:
+ * прокрутили вниз → top вырос → документ стал выше → сайт увеличил рамку → следующий кадр
+ * сдвинул окно ещё ниже. Петля на 60 кадрах в секунду.
+ * `fixed` из высоты документа выпадает, поэтому кормить петлю нечем, а на экране окно
+ * встаёт туда же: внутри iframe прокрутки нет, scrollY всегда 0.
+ */
+export function pinStyle(box, viewportH) {
+  const top = Math.max(0, -box.top);
+  const height = Math.max(240, Math.min(viewportH, box.bottom) - Math.max(0, box.top));
+  return { position: 'fixed', top, height };
+}
 
 export class LibraryPanel {
   /**
@@ -221,9 +239,9 @@ export class LibraryPanel {
   }
 
   // На сайте конструктор стоит в iframe без своей прокрутки: его «экран» равен всей высоте
-  // документа, поэтому position:fixed центрирует окно по СЕРЕДИНЕ КОНСТРУКТОРА, а не по экрану
-  // покупателя. На телефоне это выглядело так, будто кнопка «Выбрать принт» не работает.
-  // Поэтому во встроенном режиме кладём окно ровно на видимую часть и следим за прокруткой.
+  // документа, поэтому обычный `fixed` с `inset: 0` растянул бы окно по СЕРЕДИНЕ
+  // КОНСТРУКТОРА, а не по экрану покупателя. На телефоне это выглядело так, будто кнопка
+  // «Выбрать принт» не работает. Поэтому положение считаем сами — см. pinStyle.
   _pinToViewport() {
     const frame = (() => { try { return window.frameElement; } catch { return null; } })();
     if (!frame || !this.overlay) return;
@@ -235,12 +253,11 @@ export class LibraryPanel {
         box = frame.getBoundingClientRect();
         viewportH = window.parent.innerHeight;
       } catch { return; }
-      const top = Math.max(0, -box.top);
-      const height = Math.max(240, Math.min(viewportH, box.bottom) - Math.max(0, box.top));
-      this.overlay.style.position = 'absolute';
-      this.overlay.style.top = top + 'px';
+      const pin = pinStyle(box, viewportH);
+      this.overlay.style.position = pin.position;
+      this.overlay.style.top = pin.top + 'px';
       this.overlay.style.bottom = 'auto';
-      this.overlay.style.height = height + 'px';
+      this.overlay.style.height = pin.height + 'px';
       const card = this.overlay.querySelector('.libm__card');
       if (card) card.style.maxHeight = '100%';
     };

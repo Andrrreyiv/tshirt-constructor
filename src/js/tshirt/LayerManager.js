@@ -34,6 +34,29 @@ export class LayerManager {
     return Object.keys(this.layers).some(s => this.countKind(s, kind) > 0);
   }
 
+  /**
+   * Переписать оформление у ВСЕХ слоёв данного вида на обеих сторонах.
+   * Возвращает число изменённых слоёв.
+   * ⚠️ Клиент 25.08: «я меняю шрифты, а надпись не меняется, то есть только изначально,
+   * когда выбрал шрифт, он тем шрифтом и написал». Шрифт и цвет писались в дескриптор
+   * ОДИН раз, при создании слоя, а перерисовка сцены собирает слои из тех же дескрипторов,
+   * поэтому никакой рендер не мог изменить готовую надпись. Правка обязана идти в дескриптор.
+   * Undefined в патче игнорируем: смена только шрифта не должна сбрасывать цвет, и наоборот.
+   */
+  restyleKind(kind, patch = {}) {
+    const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
+    if (!keys.length) return 0;
+    let n = 0;
+    for (const side of Object.keys(this.layers)) {
+      for (const o of this._side(side)) {
+        if ((o?.kind ?? 'print') !== kind) continue;
+        for (const k of keys) o[k] = patch[k];
+        n++;
+      }
+    }
+    return n;
+  }
+
   /** Удалить принт со стороны. */
   remove(side, obj) {
     const arr = this._side(side);
