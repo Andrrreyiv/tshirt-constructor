@@ -750,13 +750,33 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
   overflow-y: auto; align-content: start; padding-right: 4px;
 }
+/* Обёртка появилась вместе с лупой (клиент 09.09): кнопка «посмотреть крупнее» обязана
+   быть СЕСТРОЙ кнопки выбора, а не лежать внутри неё, иначе клик по лупе всплывал бы
+   в выбор принта. Квадрат плитки держит теперь обёртка. */
+.libm__cellwrap { position: relative; aspect-ratio: 1; }
 .libm__cell {
-  aspect-ratio: 1; padding: 6px; cursor: pointer;
+  width: 100%; height: 100%; padding: 6px; cursor: pointer;
   background: var(--surface-2); border: 1.5px solid var(--line); border-radius: var(--r-sm);
   transition: border-color .15s var(--ease), transform .15s var(--ease);
 }
 .libm__cell--dark { background: #2b2f36; }
-.libm__cell:hover { border-color: var(--brand); transform: translateY(-2px); }
+.libm__cellwrap:hover .libm__cell { border-color: var(--brand); transform: translateY(-2px); }
+
+/* Лупа. На мыши проявляется по наведению, чтобы не рябить в сетке из 82 плиток;
+   на тач-экранах наведения нет — там она видна всегда (правило ниже). */
+.libm__zoom {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .92); color: var(--ink);
+  box-shadow: var(--sh-sm); cursor: pointer;
+  opacity: 0; transition: opacity .15s var(--ease), background .15s var(--ease);
+}
+.libm__cellwrap:hover .libm__zoom, .libm__zoom:focus-visible { opacity: 1; }
+.libm__zoom:hover { background: #fff; color: var(--brand); }
+@media (hover: none) {
+  .libm__zoom { opacity: 1; }
+}
 .libm__thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* Клиент 01.08: «чтобы нельзя было открыть принт в новом окне и скачать, правая кнопка
    чтобы не работала». Перетаскивание и выделение картинок отключены здесь, правая кнопка —
@@ -769,6 +789,73 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+
+/* ── Просмотр принта крупно ───────────────────────────────
+   Клиент 09.09 (голосовое 14:19): «нет кнопочки, как в Ютубе, увеличить… чтобы принт
+   открылся, ну как бы НЕ НА ВЕСЬ ЭКРАН, а хотя бы в доступное обозримое поле».
+   Отсюда max-width 680px и поля вокруг: это увеличение, а не полноэкранный режим.
+
+   ⚠️ Размеры в ПРОЦЕНТАХ от окна библиотеки, а не в vh. Конструктор стоит в iframe без
+   своей прокрутки, и внутри него `100vh` — это высота РАМКИ, а не экрана покупателя
+   (ровно на этом сайт уезжал вниз без конца, см. OverlayPin.test.js). Высоту .libm
+   пересчитывает скрипт, поэтому проценты от неё — единственная честная мера. */
+.libp {
+  position: absolute; inset: 0; z-index: 310;
+  background: rgba(20, 16, 8, .62);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.libp__box {
+  position: relative;
+  max-width: min(680px, 92%); max-height: 88%;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; border-radius: var(--r-xl);
+  background: var(--surface); box-shadow: var(--sh-lg);
+}
+/* Та же подложка, что у плитки: белый принт на белом фоне иначе не виден. */
+.libp__box--dark { background: #2b2f36; }
+.libp__img {
+  min-height: 0; max-width: 100%; object-fit: contain; border-radius: var(--r-sm);
+  -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.libp__close {
+  position: absolute; top: -14px; right: -14px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%; border: 0;
+  background: var(--surface); color: var(--muted);
+  font-size: 22px; line-height: 1; cursor: pointer; box-shadow: var(--sh-sm);
+}
+.libp__close:hover { background: var(--line); color: var(--ink); }
+.libp__nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 40px; height: 40px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, .92); color: var(--ink);
+  font-size: 26px; line-height: 1; cursor: pointer; box-shadow: var(--sh-sm);
+}
+.libp__nav:hover { background: #fff; color: var(--brand); }
+.libp__nav--prev { left: -18px; }
+.libp__nav--next { right: -18px; }
+.libp__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-shrink: 0;
+}
+.libp__counter { font-size: 13px; color: var(--muted); }
+.libp__box--dark .libp__counter { color: #b9bfc8; }
+.libp__take {
+  padding: 10px 20px; border-radius: 999px; border: 0;
+  background: var(--brand); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.libp__take:hover { background: var(--brand-strong); }
+
+/* На телефоне окно библиотеки занимает весь экран, и стрелки, вынесенные наружу,
+   упирались бы в края. Здесь они уходят внутрь картинки. */
+@media (max-width: 760px) {
+  .libp { padding: 12px; }
+  .libp__box { max-width: 100%; max-height: 92%; }
+  .libp__close { top: 6px; right: 6px; }
+  .libp__nav--prev { left: 2px; }
+  .libp__nav--next { right: 2px; }
 }
 
 .libm__more {
