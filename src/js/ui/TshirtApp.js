@@ -7,6 +7,7 @@ import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260913a';
 import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260913a';
 import { CmScaler } from '../tshirt/CmScaler.js?v=20260913a';
 import { visibleTypes, visibleDensities } from '../tshirt/AdminOverrides.js?v=20260913a';
+import { orderSpec } from '../tshirt/OrderSpec.js?v=20260913b';
 import { LayerManager } from '../tshirt/LayerManager.js?v=20260913a';
 import { StepPrice } from '../tshirt/StepPrice.js?v=20260913a';
 import { TextPrice } from '../tshirt/TextPrice.js?v=20260913a';
@@ -545,6 +546,7 @@ export class TshirtApp {
 
     const cta = el('button', 'cta', 'Оформить заказ');
     cta.type = 'button';
+    cta.onclick = () => this.showOrder();
     sec.append(cta);
     sec.append(el('div', 'hint price-note', 'Цена предварительная. Менеджер подтвердит перед оплатой.'));
 
@@ -889,6 +891,108 @@ export class TshirtApp {
     return field;
   }
 
+  // ── Оформление заказа ────────────────────────────────────────────────────
+  // Сделано по образцу конструктора ФОРМЫ (app.browser.js: showOrder + jetron-orders.php).
+  // Главное правило оттуда: сумма из браузера НИКОГДА не становится ценой — она едет рядом
+  // только для сверки, а цену пересчитывает сервер по спецификации.
+
+  /** Настройки товара WooCommerce. Нет файла (стенд без WP) — работаем без корзины. */
+  async _wooConfig() {
+    if (this._woo !== undefined) return this._woo;
+    try {
+      const r = await fetch('woo.json', { cache: 'no-store' });
+      // 404 запоминаем: на стенде без WordPress файла нет и не будет.
+      this._woo = r.ok ? await r.json() : null;
+    } catch {
+      return null; // сорванный запрос не кешируем — вдруг сеть моргнула
+    }
+    return this._woo;
+  }
+
+  showOrder() {
+    const order = this.currentOrder();
+    if (!this.layers.list('front').length && !this.layers.list('back').length) {
+      // Пустая футболка без нанесений — это обычный товар из каталога, не конструктор.
+      this._orderNote('Добавьте принт или надпись — иначе заказывать нечего.');
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'order-overlay';
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    const spec = orderSpec(order, { quantity: 1, withText: true });
+    card.innerHTML = `
+      <h3>Проверьте заказ</h3>
+      <pre class="order-spec">${escapeHtml(spec.specText)}</pre>
+      <label class="order-qty">Количество
+        <input type="number" min="1" max="1000" step="1" value="1" id="ts-qty">
+      </label>
+      <p class="order-total">Предварительно: <b id="ts-total">${order.price.total} ₽</b> за штуку</p>
+      <p class="hint">Точную сумму подтвердит менеджер: цену пересчитывает сервер.</p>
+      <div class="order-actions">
+        <button type="button" class="cta" id="ts-confirm">В корзину</button>
+        <button type="button" class="ghost" id="ts-cancel">Отмена</button>
+      </div>
+      <p class="order-error" id="ts-err" hidden></p>`;
+    overlay.append(card);
+    document.body.append(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    card.querySelector('#ts-cancel').onclick = close;
+    card.querySelector('#ts-confirm').onclick = () => this._submitOrder(card, close);
+  }
+
+  async _submitOrder(card, close) {
+    const btn = card.querySelector('#ts-confirm');
+    const err = card.querySelector('#ts-err');
+    btn.disabled = true;
+    try {
+      const woo = await this._wooConfig();
+      const order = this.currentOrder();
+      const qty = Number(card.querySelector('#ts-qty').value);
+      const spec = orderSpec(order, { quantity: qty, withText: true });
+      if (!woo || !woo.productId) {
+        // Стенд без WordPress: заказ собран, но корзины нет — честно об этом говорим.
+        err.hidden = false;
+        err.textContent = 'Корзина недоступна на этом стенде. Заказ собран, свяжитесь с менеджером.';
+        btn.disabled = false;
+        return;
+      }
+      const png = await this.mockupDataURL();
+      const base = String(woo.siteUrl || '').replace(/\/$/, '');
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.target = '_top'; // конструктор живёт в iframe — уводим ВСЮ страницу в корзину
+      form.action = `${base}/?add-to-cart=${encodeURIComponent(woo.productId)}`;
+      const add = (n, v) => {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = n; i.value = v;
+        form.append(i);
+      };
+      add('quantity', String(spec.quantity));
+      add('tshirt_spec', spec.specText);
+      // ⚠️ Ценой это не станет: сервер пересчитывает сам, число едет для сверки.
+      add('tshirt_total', String(order.price.total));
+      add('tshirt_order', JSON.stringify({ ...spec, specText: undefined }));
+      if (png) add('tshirt_png', png);
+      document.body.append(form);
+      form.submit();
+      close();
+    } catch (e) {
+      err.hidden = false;
+      err.textContent = 'Не получилось отправить заказ. Попробуйте ещё раз.';
+      btn.disabled = false;
+    }
+  }
+
+  _orderNote(текст) {
+    const note = document.createElement('div');
+    note.className = 'order-note';
+    note.textContent = текст;
+    document.body.append(note);
+    setTimeout(() => note.remove(), 3200);
+  }
+
   // ── Скачать макет (клиент 30.07) ─────────────────────────────────────────
   // Конструктор футболок рисует нанесения обычным DOM, а не Fabric, поэтому холст
   // собираем вручную: мокап в натуральную величину, поверх принты и надписи по тем же
@@ -904,12 +1008,33 @@ export class TshirtApp {
       this.state.side
     );
 
+    const собрано = await this._composeMockup(wanted);
+    if (!собрано) return;
+    const { out, sides } = собрано;
+    const form = this.currentForm();
+    // В имя файла добавляем сторону, когда она одна: у печатника не должно быть вопросов,
+    // грудь это или спина, если покупатель прислал два файла из разных заходов.
+    const sidePart = sides.length === 1 ? sides[0].id : '';
+    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? '', sidePart]
+      .filter(Boolean).join('-');
+    const a = document.createElement('a');
+    a.download = name + '.png';
+    a.href = out.toDataURL('image/png');
+    a.click();
+  }
+
+  /**
+   * Общий холст макета: стороны с нанесениями рядом, с подписями, на белом фоне.
+   * Вынесено из downloadMockup, чтобы ТОТ ЖЕ макет уходил в заказ — у конструктора формы
+   * менеджер тоже видит картинку (поле jetron_png), иначе по тексту непонятно, что печатать.
+   */
+  async _composeMockup(wanted) {
     const sides = [];
     for (const side of wanted) {
       const c = await this._composeSide(side.id);
       if (c) sides.push({ label: side.label, id: side.id, canvas: c });
     }
-    if (!sides.length) return;
+    if (!sides.length) return null;
 
     const pad = 24, gap = 24, labelH = 34;
     const maxH = Math.max(...sides.map(s => s.canvas.height));
@@ -929,17 +1054,21 @@ export class TshirtApp {
       ctx.drawImage(s.canvas, x, pad + labelH);
       x += s.canvas.width + gap;
     }
+    return { out, sides };
+  }
 
-    const form = this.currentForm();
-    // В имя файла добавляем сторону, когда она одна: у печатника не должно быть вопросов,
-    // грудь это или спина, если покупатель прислал два файла из разных заходов.
-    const sidePart = sides.length === 1 ? sides[0].id : '';
-    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? '', sidePart]
-      .filter(Boolean).join('-');
-    const a = document.createElement('a');
-    a.download = name + '.png';
-    a.href = out.toDataURL('image/png');
-    a.click();
+  /**
+   * Макет для заказа. JPEG, а не PNG: у формы так же (mockupDataURL 'image/jpeg', 0.85) —
+   * PNG композита с фотомокапом весит единицы мегабайт и упирается в лимит плагина.
+   */
+  async mockupDataURL(type = 'image/jpeg', quality = 0.85) {
+    const wanted = sidesToExport(
+      this.config.sides,
+      (id) => this.layers.list(id).length > 0,
+      this.state.side
+    );
+    const собрано = await this._composeMockup(wanted);
+    return собрано ? собрано.out.toDataURL(type, quality) : null;
   }
 
   /** Один холст стороны: мокап в натуральную величину плюс все нанесения. */
@@ -1049,4 +1178,11 @@ function loadPic(src) {
     im.onerror = reject;
     im.src = src;
   });
+}
+
+// Спецификация уходит в <pre>, а в ней текст покупателя (надписи). Экранируем.
+function escapeHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
