@@ -863,8 +863,12 @@ function jetron_ts_page() {
  */
 function jetron_ts_tab_catalog($nonce) {
     $admin  = jetron_ts_load('admin.json');
-    $rows   = isset($admin['densities']) && is_array($admin['densities']) ? $admin['densities'] : jetron_ts_default_densities();
-    $prices = isset($admin['prices']['form']) && is_array($admin['prices']['form']) ? $admin['prices']['form'] : array();
+    $rows   = isset($admin['densities']) && is_array($admin['densities']) && $admin['densities']
+        ? $admin['densities'] : jetron_ts_default_densities();
+    // Пока владелец не сохранял цены, показываем ДЕЙСТВУЮЩИЕ из конфига конструктора,
+    // а не пустые поля: иначе вкладка выглядит так, будто цен нет вовсе.
+    $prices = isset($admin['prices']['form']) && is_array($admin['prices']['form']) && $admin['prices']['form']
+        ? $admin['prices']['form'] : jetron_ts_config_form_prices();
     $types  = jetron_ts_type_labels();
     $saved  = array();
     foreach ((isset($admin['formTypes']) && is_array($admin['formTypes']) ? $admin['formTypes'] : array()) as $t) {
@@ -919,6 +923,31 @@ function jetron_ts_tab_catalog($nonce) {
 
     submit_button('Сохранить плотности и фасоны');
     echo '</form>';
+}
+
+// Действующие цены изделия из конфига конструктора: фасон => плотность => рубли.
+// Служебные ключи вида _note пропускаем — в конфиге рядом с матрицей лежат пояснения.
+function jetron_ts_config_form_prices() {
+    $file = ABSPATH . JETRON_TS_ROOT . 'src/config/tshirt-mock-config.json';
+    if (!is_readable($file)) {
+        return array();
+    }
+    $cfg = json_decode((string) file_get_contents($file), true);
+    if (!is_array($cfg) || !isset($cfg['prices']['form']) || !is_array($cfg['prices']['form'])) {
+        return array();
+    }
+    $out = array();
+    foreach ($cfg['prices']['form'] as $type => $row) {
+        if (strpos((string) $type, '_') === 0 || !is_array($row)) {
+            continue;
+        }
+        foreach ($row as $g => $price) {
+            if (is_numeric($g) && is_numeric($price)) {
+                $out[$type][(string) $g] = $price + 0;
+            }
+        }
+    }
+    return $out;
 }
 
 // Список по умолчанию — тот же, что в конфиге конструктора (скриншот клиента 29.07).
