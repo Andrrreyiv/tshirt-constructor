@@ -35,8 +35,12 @@ add_action('plugins_loaded', function () {
     add_filter('woocommerce_get_item_data', 'jetron_ts_ord_cart_view', 10, 2);
     add_filter('woocommerce_cart_item_thumbnail', 'jetron_ts_ord_cart_thumb', 10, 3);
     add_action('woocommerce_checkout_create_order_line_item', 'jetron_ts_ord_line_meta', 10, 4);
-    // Товар скрыт из каталога, поэтому обычная проверка покупаемости его бы отсекла.
+    // Товар скрыт из каталога, поэтому обычные проверки его бы отсекли. Нужны ОБЕ:
+    // is_purchasable пускает его в корзину как покупаемый, а add_to_cart_validation —
+    // проходит проверку самого добавления. Без второй позиция молча не попадала в корзину
+    // (замер 13.09: товар создан и опубликован, add-to-cart отвечает 200, корзина пуста).
     add_filter('woocommerce_is_purchasable', 'jetron_ts_ord_purchasable', 99, 2);
+    add_filter('woocommerce_add_to_cart_validation', 'jetron_ts_ord_force_valid', 99, 3);
 });
 
 function jetron_ts_ord_file($name) {
@@ -81,6 +85,11 @@ function jetron_ts_ord_write_woo_json($id) {
     if (is_dir(dirname($path))) {
         file_put_contents($path, $data, LOCK_EX);
     }
+}
+
+function jetron_ts_ord_force_valid($passed, $product_id, $qty) {
+    $id = (int) get_option(JETRON_TS_ORD_OPTION, 0);
+    return ($id && (int) $product_id === $id) ? true : $passed;
 }
 
 function jetron_ts_ord_purchasable($purchasable, $product) {
