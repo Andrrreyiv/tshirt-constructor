@@ -3,26 +3,26 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260913a';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260913a';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260913a';
-import { visibleTypes, visibleDensities } from '../tshirt/AdminOverrides.js?v=20260913a';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260913b';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260913b';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260913b';
+import { visibleTypes, visibleDensities } from '../tshirt/AdminOverrides.js?v=20260913b';
 import { orderSpec } from '../tshirt/OrderSpec.js?v=20260913b';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260913a';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260913a';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260913a';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260913a';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260913a';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260913a';
-import { Recolor } from '../tshirt/Recolor.js?v=20260913a';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260913a';
-import { colorTone } from '../tshirt/PrintTone.js?v=20260913a';
-import { sidesToExport } from '../tshirt/MockupExport.js?v=20260913a';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260913a';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260913a';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260913a';
-import { forcedMethod } from '../tshirt/PrintMethod.js?v=20260913a';
-import { PanelAccordion } from './PanelAccordion.js?v=20260913a';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260913b';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260913b';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260913b';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260913b';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260913b';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260913b';
+import { Recolor } from '../tshirt/Recolor.js?v=20260913b';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260913b';
+import { colorTone } from '../tshirt/PrintTone.js?v=20260913b';
+import { sidesToExport } from '../tshirt/MockupExport.js?v=20260913b';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260913b';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260913b';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260913b';
+import { forcedMethod } from '../tshirt/PrintMethod.js?v=20260913b';
+import { PanelAccordion } from './PanelAccordion.js?v=20260913b';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */

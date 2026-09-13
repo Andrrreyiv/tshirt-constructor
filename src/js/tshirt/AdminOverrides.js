@@ -8,8 +8,8 @@
 // нет, база считается в OrderBuilder.js из config.prices.form. Поэтому цены изделия по
 // плотностям настраиваются здесь же: иначе клиент задаёт плотности, а цену им взять неоткуда.
 
-import { validateCrop } from './Crop.js?v=20260913a';
-import { validateStageWidth } from './StageWidth.js?v=20260913a';
+import { validateCrop } from './Crop.js?v=20260913b';
+import { validateStageWidth } from './StageWidth.js?v=20260913b';
 
 export function applyTshirtAdmin(config, admin) {
   const out = clone(config);
