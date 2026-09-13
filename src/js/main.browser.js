@@ -1,11 +1,11 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260910a';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260910a';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260910a';
-import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZonesOverride } from './tshirt/AdminOverrides.js?v=20260910a';
-import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260910a';
+import { validateConfig } from './core/ConfigLoader.js?v=20260913a';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260913a';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260913a';
+import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZonesOverride } from './tshirt/AdminOverrides.js?v=20260913a';
+import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260913a';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
 const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260910a';
