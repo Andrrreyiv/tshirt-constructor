@@ -8,7 +8,7 @@ import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZ
 import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260913a';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
-const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260910a';
+const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260913a';
 
 async function boot() {
   const res = await fetch(CONFIG_URL);
