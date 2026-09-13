@@ -4,7 +4,9 @@
 //   prints.json — категории библиотеки принтов и картинки в них
 // Правило то же, что и в конструкторе формы: битый раздел игнорируется целиком,
 // конструктор остаётся на базовом конфиге и не падает.
-// Цена САМОГО ИЗДЕЛИЯ здесь не участвует — она приходит из карточки товара WooCommerce.
+// ⚠️ Замер 13.09: цена изделия НЕ приходит из карточки WooCommerce — обращений к Woo в проекте
+// нет, база считается в OrderBuilder.js из config.prices.form. Поэтому цены изделия по
+// плотностям настраиваются здесь же: иначе клиент задаёт плотности, а цену им взять неоткуда.
 
 import { validateCrop } from './Crop.js?v=20260910a';
 import { validateStageWidth } from './StageWidth.js?v=20260910a';
@@ -14,9 +16,73 @@ export function applyTshirtAdmin(config, admin) {
   if (!admin || typeof admin !== 'object') return out;
 
   applyPrices(out, admin.prices);
+  applyFormPrices(out, admin.prices);
   out.colors = keepNotes(config.colors, listOr(out.colors, admin.colors, isColor));
   out.forms = listOr(out.forms, admin.forms, isForm);
+  out.densities = listOr(out.densities, admin.densities, isDensity);
+  // Раздел фасонов — только подписи и видимость: сами изделия живут в forms.
+  if (Array.isArray(admin.formTypes)) {
+    const годные = admin.formTypes.filter(isFormType);
+    if (годные.length) out.formTypes = годные.map((t) => ({ ...t }));
+  }
   return out;
+}
+
+// Клиент 12.09 просил «настроить плотности футболок». Плотность без цены бессмысленна:
+// база заказа = ТИП × ПЛОТНОСТЬ (OrderBuilder.js). Принимаем только конечные числа —
+// строка в цене превратила бы заказ в 0 ₽.
+function applyFormPrices(out, prices) {
+  const form = prices && prices.form;
+  if (!form || typeof form !== 'object') return;
+  if (!out.prices) out.prices = {};
+  const base = { ...(out.prices.form || {}) };
+  for (const [тип, поПлотности] of Object.entries(form)) {
+    if (!поПлотности || typeof поПлотности !== 'object') continue;
+    const ряд = { ...(base[тип] || {}) };
+    for (const [плотность, цена] of Object.entries(поПлотности)) {
+      if (Number.isFinite(Number(цена)) && String(цена).trim() !== '') ряд[плотность] = Number(цена);
+    }
+    base[тип] = ряд;
+  }
+  out.prices.form = base;
+}
+
+function isDensity(d) {
+  return !!d && Number.isFinite(Number(d.g)) && Number(d.g) > 0 && str(d.label);
+}
+
+function isFormType(t) {
+  return !!t && str(t.id);
+}
+
+/**
+ * Плотности, которые видит покупатель. Скрытая плотность остаётся в каталоге — цена по ней
+ * могла уже уйти в заказ, — но кнопку не показываем.
+ * ⚠️ Спрятать ВСЁ нельзя: пустой переключатель означал бы, что выбрать нечего, поэтому
+ * при полном скрытии показываем список как есть.
+ */
+export function visibleDensities(config) {
+  const все = (config && config.densities) || [];
+  const видимые = все.filter((d) => !d.hidden);
+  return видимые.length ? видимые : все;
+}
+
+/**
+ * Фасоны для переключателя: значение из каталога изделий, подпись и видимость — из настроек.
+ * Третья кнопка («Длинный рукав») появляется сама, как только в forms есть изделие такого типа.
+ */
+export function visibleTypes(config) {
+  const настройки = new Map(((config && config.formTypes) || []).map((t) => [t.id, t]));
+  const seen = new Map();
+  for (const f of ((config && config.forms) || [])) {
+    if (seen.has(f.type)) continue;
+    const s = настройки.get(f.type);
+    const подпись = (s && str(s.label)) ? s.label : (f.typeLabel || f.type);
+    seen.set(f.type, { value: f.type, label: подпись, hidden: !!(s && s.hidden) });
+  }
+  const все = [...seen.values()];
+  const видимые = все.filter((t) => !t.hidden);
+  return (видимые.length ? видимые : все).map(({ value, label }) => ({ value, label }));
 }
 
 // Пояснения к цветам админка пока не редактирует. Без этого правка цвета в админке

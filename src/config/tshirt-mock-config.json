@@ -278,7 +278,7 @@
     {
       "id": "base-white",
       "type": "base",
-      "typeLabel": "Короткий рукав",
+      "typeLabel": "Базовая",
       "colorId": "white",
       "color": "Белый",
       "colorHex": "#f4f5f7",
@@ -290,7 +290,7 @@
     {
       "id": "base-black",
       "type": "base",
-      "typeLabel": "Короткий рукав",
+      "typeLabel": "Базовая",
       "colorId": "black",
       "color": "Чёрный",
       "colorHex": "#1c1c1e",
@@ -302,7 +302,7 @@
     {
       "id": "base-ivory",
       "type": "base",
-      "typeLabel": "Короткий рукав",
+      "typeLabel": "Базовая",
       "colorId": "ivory",
       "color": "Слоновая кость",
       "colorHex": "#e9dfc9",

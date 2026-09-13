@@ -6,6 +6,7 @@
 import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260910a';
 import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260910a';
 import { CmScaler } from '../tshirt/CmScaler.js?v=20260910a';
+import { visibleTypes, visibleDensities } from '../tshirt/AdminOverrides.js?v=20260913a';
 import { LayerManager } from '../tshirt/LayerManager.js?v=20260910a';
 import { StepPrice } from '../tshirt/StepPrice.js?v=20260910a';
 import { TextPrice } from '../tshirt/TextPrice.js?v=20260910a';
@@ -320,11 +321,10 @@ export class TshirtApp {
   // ── Панель параметров ────────────────────────────────────────────────────
   /** Фасоны из каталога: значение + подпись как в карточке товара. */
   typeOptions() {
-    const seen = new Map();
-    for (const f of this.config.forms) {
-      if (!seen.has(f.type)) seen.set(f.type, f.typeLabel ?? f.type);
-    }
-    return [...seen.entries()].map(([value, label]) => ({ value, label }));
+    // Подпись и видимость фасона идут из настроек админки (раздел formTypes), значение — из
+    // каталога изделий. Клиент 12.09: «Короткий рукав поменять на "Базовая"», «добавить третью
+    // кнопку "Длинный рукав"», «дать возможность отключать эти кнопки из видимости».
+    return visibleTypes(this.config);
   }
 
   /** Сменить фасон, сохранив выбранный цвет, если он есть у нового фасона. */
@@ -364,8 +364,10 @@ export class TshirtApp {
       this.sizesField()));
     product.append(this.segField(null, this.typeOptions(),
       this.state.type, v => this.pickType(v)));
+    // Скрытые в админке плотности покупателю не показываем, но из каталога не удаляем:
+    // цена по ним могла уже уйти в заказ.
     product.append(this.segField(null,
-      c.densities.map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
+      visibleDensities(c).map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
       this.state.densityG, v => { this.state.densityG = Number(v); this.render(); }));
     // Превью сторон и выбор стороны: в макете клиента они идут сразу под плотностью.
     product.append(this.sidePreviewField());
