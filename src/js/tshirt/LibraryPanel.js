@@ -6,8 +6,8 @@
 // (клиент 28.07: «нам надо зеркально сделать»).
 // Сверху окна — загрузка своего файла, с перетаскиванием.
 
-import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260913b';
-import { PrintPreview } from './PrintPreview.js?v=20260913b';
+import { LIGHT, DARK, ANY, printTone, filterCategories, hiddenCount } from './PrintTone.js?v=20260920a';
+import { PrintPreview } from './PrintPreview.js?v=20260920a';
 
 /**
  * Куда положить окно библиотеки, когда конструктор стоит в iframe без своей прокрутки.
