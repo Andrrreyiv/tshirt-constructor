@@ -42,14 +42,39 @@ test('zoneInCrop переводит зону из долей всего мока
   assert.deepEqual(zoneInCrop(zone, null), zone);
 });
 
-test('mockupTransform: центр кадра становится точкой отсчёта, масштаб обратен стороне', () => {
+// Семантика CSS разбором того, что вернула функция: куда на экране попадёт точка
+// картинки с долей p при ширине контейнера W. Именно это важно, а не текст стиля:
+// старый тест сверял строки со СВОЕЙ же реализацией и пропустил сдвиг кадра на 35 px.
+function mapPoint(style, p, W) {
+  const [ox] = style.transformOrigin.split(' ');
+  const origin = ox.trim() === '0' ? 0 : (parseFloat(ox) / 100) * W;
+  const k = parseFloat(style.transform.match(/scale\(([-\d.]+)\)/)[1]);
+  const tr = style.transform.match(/translate\(([-\d.]+)%/);
+  const shift = tr ? (parseFloat(tr[1]) / 100) * W : 0;
+  // translate применяется первым, затем scale относительно origin.
+  return origin + ((p * W + shift) - origin) * k;
+}
+
+test('mockupTransform: кадр заполняет контейнер ровно, включая НЕЦЕНТРИРОВАННЫй', () => {
   assert.equal(mockupTransform(FULL_CROP), null, 'без кадрирования стиль не нужен');
-  const t = mockupTransform({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
-  assert.equal(t.transformOrigin, '50% 50%');
-  assert.equal(t.transform, 'scale(2)');
-  const t2 = mockupTransform({ x: 0, y: 0, w: 0.5, h: 0.5 });
-  assert.equal(t2.transformOrigin, '25% 25%');
-  assert.equal(t2.transform, 'scale(2)');
+  const W = 314;
+  for (const crop of [
+    { x: 0.25, y: 0.25, w: 0.5, h: 0.5 },   // центрированный
+    { x: 0, y: 0, w: 0.5, h: 0.5 },         // в углу
+    { x: 0, y: 0, w: 0.78, h: 0.78 },       // случай с боевого 31.07
+    { x: 0.2, y: 0.1, w: 0.6, h: 0.6 },
+  ]) {
+    const st = mockupTransform(crop);
+    const left = mapPoint(st, crop.x, W);
+    const right = mapPoint(st, crop.x + crop.w, W);
+    assert.ok(Math.abs(left) < 0.5, 'левый край кадра в 0, а не ' + left);
+    assert.ok(Math.abs(right - W) < 0.5, 'правый край кадра в W, а не ' + right);
+  }
+});
+
+test('mockupTransform: масштаб обратен стороне кадра', () => {
+  assert.match(mockupTransform({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }).transform, /scale\(2\)/);
+  assert.match(mockupTransform({ x: 0, y: 0, w: 0.25, h: 0.25 }).transform, /scale\(4\)/);
 });
 
 test('moveCrop двигает кадр и упирается в края картинки', () => {

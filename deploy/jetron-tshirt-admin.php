@@ -9,7 +9,8 @@
  * валидация, запись JSON рядом с конструктором. Конструктор накладывает настройки поверх
  * базового конфига (src/js/tshirt/AdminOverrides.js) и игнорирует битые разделы.
  *
- * Цена САМОГО ИЗДЕЛИЯ здесь НЕ настраивается — она берётся из карточки товара WooCommerce.
+ * Цена САМОГО ИЗДЕЛИЯ настраивается на вкладке «Плотности и фасоны» (prices.form в admin.json).
+ * ⚠️ Замер 13.09: связи с WooCommerce в конструкторе нет, прежняя запись про карточку товара неверна.
  */
 
 if (!defined('ABSPATH')) {
@@ -18,6 +19,21 @@ if (!defined('ABSPATH')) {
 
 const JETRON_TS_NONCE = 'jetron_tshirt_admin';
 const JETRON_TS_ROOT  = 'tshirt/';
+
+/**
+ * Фасоны футболок: id => подпись по умолчанию.
+ * Клиент 12.09: «Короткий рукав» переименован в «Базовую» (админка так писала и раньше,
+ * расходился только конфиг конструктора) и добавлен «Длинный рукав».
+ * ⚠️ Третья кнопка появится у покупателя только когда в каталоге есть изделие этого фасона:
+ * переключатель строится из forms, а не из этой карты.
+ */
+function jetron_ts_type_labels() {
+    return array(
+        'base'     => 'Базовая',
+        'oversize' => 'Оверсайз',
+        'long'     => 'Длинный рукав',
+    );
+}
 const JETRON_TS_ZONES_NONCE = 'jetron_tshirt_zones';
 
 function jetron_ts_path($file) {
@@ -209,6 +225,33 @@ add_action('wp_ajax_jetron_ts_zones', function () {
     if (!count($clean)) {
         wp_send_json_error(array('message' => 'Нет ни одной корректной зоны.'), 400);
     }
+    // Детские зоны (клиент 01.08: «в детской не могу увеличить квадрат»). Раньше детская
+    // всегда выводилась из взрослой по сантиметрам, и увеличить её было нельзя. Теперь
+    // она правится отдельно и лежит в том же файле под ключом child. Раздел необязательный.
+    if (isset($raw['child']) && is_array($raw['child'])) {
+        $child = array();
+        foreach ($raw['child'] as $view => $box) {
+            $view = sanitize_key($view);
+            if (!in_array($view, array('front', 'back'), true) || !is_array($box)) {
+                continue;
+            }
+            $out = array();
+            $bad = false;
+            foreach (array('x', 'y', 'w', 'h') as $k) {
+                if (!isset($box[$k]) || !is_numeric($box[$k])) { $bad = true; break; }
+                $out[$k] = round(min(max((float) $box[$k], 0), 1), 4);
+            }
+            if ($bad || $out['w'] <= 0 || $out['h'] <= 0) {
+                continue;
+            }
+            $out['x'] = round(min($out['x'], 1 - $out['w']), 4);
+            $out['y'] = round(min($out['y'], 1 - $out['h']), 4);
+            $child[$view] = $out;
+        }
+        if (count($child)) {
+            $clean['child'] = $child;
+        }
+    }
     if (jetron_ts_save('zones.json', $clean) === false) {
         wp_send_json_error(array('message' => 'Не удалось записать файл.'), 500);
     }
@@ -244,7 +287,23 @@ add_action('wp_ajax_jetron_ts_zones', function () {
         wp_send_json_error(array('message' => 'Зоны сохранены, а кадры нет: файл не записался.'), 500);
     }
 
-    wp_send_json_success(array('saved' => array_keys($clean), 'crops' => count($crops)));
+    // Ширина поля с футболкой (клиент 01.08: «мне нужно вот это поле увеличить прямо
+    // до краёв»). Приходит тем же сохранением. Диапазон повторяет StageWidth.js на фронте:
+    // уже 1000 сцену съедает панель, шире 2000 строка ведёт глаз слишком далеко.
+    // Раздел необязательный: его отсутствие не должно ломать сохранение зон.
+    $stage_raw = json_decode(wp_unslash($_POST['stage'] ?? ''), true);
+    $stage = array();
+    if (is_array($stage_raw) && isset($stage_raw['width']) && is_numeric($stage_raw['width'])) {
+        $w = (int) round((float) $stage_raw['width']);
+        if ($w >= 1000 && $w <= 2000) {
+            $stage = array('width' => $w);
+        }
+    }
+    if (jetron_ts_save('stage.json', $stage) === false) {
+        wp_send_json_error(array('message' => 'Зоны сохранены, а ширина поля нет: файл не записался.'), 500);
+    }
+
+    wp_send_json_success(array('saved' => array_keys($clean), 'crops' => count($crops), 'stage' => $stage));
 });
 
 /** Пункт меню в админке. */
@@ -350,10 +409,78 @@ function jetron_ts_handle() {
         if ($dc !== null && $dc <= 100) {
             $text['combinedDiscountPct'] = $dc;
         }
+        // ⚠️ Раздел prices переписывается целиком, поэтому цены ИЗДЕЛИЯ (prices.form,
+        // вкладка «Плотности и фасоны») надо перенести руками — иначе сохранение цен печати
+        // молча обнуляло бы стоимость самой футболки.
+        $prev_form = isset($admin['prices']['form']) && is_array($admin['prices']['form'])
+            ? $admin['prices']['form'] : null;
         $admin['prices'] = array('print' => array('methods' => $methods), 'text' => $text);
+        if ($prev_form !== null) {
+            $admin['prices']['form'] = $prev_form;
+        }
         return jetron_ts_save('admin.json', $admin) === false
             ? array('error', 'Не удалось записать настройки.')
             : array('ok', 'Цены печати и надписи сохранены.');
+    }
+
+    // Клиент 12.09: «в админке нужны настройки этих полей… мне нужно настроить плотности
+    // футболок» и «дать возможность отключать эти кнопки из видимости».
+    if ($action === 'catalog') {
+        $gs     = (array) (isset($_POST['density_g']) ? wp_unslash($_POST['density_g']) : array());
+        $labels = (array) (isset($_POST['density_label']) ? wp_unslash($_POST['density_label']) : array());
+        $hid    = (array) (isset($_POST['density_hidden']) ? wp_unslash($_POST['density_hidden']) : array());
+        $pin    = (array) (isset($_POST['density_price']) ? wp_unslash($_POST['density_price']) : array());
+
+        $densities   = array();
+        $form_prices = array();
+        foreach ($gs as $i => $g_raw) {
+            $g = jetron_ts_num($g_raw);
+            if ($g === null || $g <= 0) {
+                continue; // пустая строка формы — просто пропускаем
+            }
+            $label = sanitize_text_field(isset($labels[$i]) ? $labels[$i] : '');
+            if ($label === '') {
+                $label = $g . ' г';
+            }
+            $row = array('g' => $g, 'label' => $label);
+            if (!empty($hid[$i])) {
+                $row['hidden'] = true;
+            }
+            $densities[] = $row;
+            foreach (jetron_ts_type_labels() as $tid => $_unused) {
+                $cell = isset($pin[$tid][$i]) ? $pin[$tid][$i] : '';
+                $price = jetron_ts_num($cell);
+                if ($price !== null && $price >= 0) {
+                    $form_prices[$tid][(string) $g] = $price;
+                }
+            }
+        }
+        // Пустой список не принимаем: он оставил бы покупателя вообще без плотностей.
+        if (!$densities) {
+            return array('error', 'Добавьте хотя бы одну плотность.');
+        }
+        $admin['densities'] = $densities;
+        if ($form_prices) {
+            if (!isset($admin['prices']) || !is_array($admin['prices'])) {
+                $admin['prices'] = array();
+            }
+            $admin['prices']['form'] = $form_prices;
+        }
+
+        $types = array();
+        foreach (jetron_ts_type_labels() as $tid => $default_label) {
+            $lab = sanitize_text_field(wp_unslash(isset($_POST['type_label'][$tid]) ? $_POST['type_label'][$tid] : ''));
+            $entry = array('id' => $tid, 'label' => ($lab !== '' ? $lab : $default_label));
+            if (!empty($_POST['type_hidden'][$tid])) {
+                $entry['hidden'] = true;
+            }
+            $types[] = $entry;
+        }
+        $admin['formTypes'] = $types;
+
+        return jetron_ts_save('admin.json', $admin) === false
+            ? array('error', 'Не удалось записать настройки.')
+            : array('ok', 'Плотности и фасоны сохранены.');
     }
 
     if ($action === 'cat_add') {
@@ -461,10 +588,15 @@ function jetron_ts_handle() {
                 $errors[] = $file['name'] . ': ' . $path['error'];
                 continue;
             }
+            $up_tone = sanitize_key(wp_unslash($_POST['print_tone'] ?? 'light'));
+            if (!in_array($up_tone, array('light', 'dark', 'any'), true)) {
+                $up_tone = 'light';
+            }
             $cats[$pos]['items'][] = array(
                 'id'   => $slug . '-' . substr(md5($path . microtime()), 0, 6),
                 'file' => $path,
-                'dark' => !empty($_POST['print_dark']),
+                'tone' => $up_tone,
+                'dark' => ($up_tone === 'dark'),
             );
             $added++;
         }
@@ -482,24 +614,27 @@ function jetron_ts_handle() {
         return array('ok', $msg);
     }
 
-    if ($action === 'print_flip') {
-        // Клиент 30.07: «как мне в админке теперь добавить этот тёмный принт или оставить
-        // его белым? Не могу найти». Раньше признак писался ТОЛЬКО при загрузке и сразу
-        // на всю пачку, изменить его можно было лишь перезалив файл.
-        $slug  = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
-        $id    = sanitize_text_field(wp_unslash($_POST['print_id'] ?? ''));
+    if ($action === 'print_tone') {
+        // Клиент 01.08: «есть принты третьей категории, которые туда и туда». Раньше признак
+        // был галочкой тёмный/светлый, теперь три состояния. Старое значение `dark` пишем
+        // рядом, чтобы вкладка со старой сборкой из кеша продолжала показывать то же самое.
+        $slug = sanitize_title(wp_unslash($_POST['cat_slug'] ?? ''));
+        $id   = sanitize_text_field(wp_unslash($_POST['print_id'] ?? ''));
+        $tone = sanitize_key(wp_unslash($_POST['print_tone'] ?? ''));
+        if (!in_array($tone, array('light', 'dark', 'any'), true)) {
+            return array('error', 'Неизвестный тон принта.');
+        }
         $cats  = jetron_ts_categories();
         $found = false;
-        $now   = false;
         foreach ($cats as &$c) {
             if (($c['slug'] ?? '') !== $slug) {
                 continue;
             }
             foreach ($c['items'] as &$i) {
                 if (($i['id'] ?? '') === $id) {
-                    $i['dark'] = empty($i['dark']);
-                    $now       = $i['dark'];
-                    $found     = true;
+                    $i['tone'] = $tone;
+                    $i['dark'] = ($tone === 'dark');
+                    $found = true;
                 }
             }
             unset($i);
@@ -508,9 +643,10 @@ function jetron_ts_handle() {
         if (!$found) {
             return array('error', 'Принт не найден, обновите страницу.');
         }
+        $names = array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых');
         return jetron_ts_save('prints.json', array('categories' => $cats)) === false
             ? array('error', 'Не удалось записать настройки.')
-            : array('ok', 'Принт помечен как ' . ($now ? 'тёмный' : 'светлый') . '.');
+            : array('ok', 'Принт помечен: ' . $names[$tone] . '.');
     }
 
     if ($action === 'print_del') {
@@ -550,7 +686,9 @@ function jetron_ts_handle_products($admin, $action) {
             $back = $front;
         }
         $type  = sanitize_key(wp_unslash($_POST['form_type'] ?? 'base'));
-        $type  = in_array($type, array('base', 'oversize'), true) ? $type : 'base';
+        // Клиент 12.09: «внизу добавить третью кнопку "Длинный рукав"». Фасон приходит из формы,
+        // поэтому белый список строится из карты подписей, а не из литерала.
+        $type  = array_key_exists($type, jetron_ts_type_labels()) ? $type : 'base';
         $color = sanitize_text_field(wp_unslash($_POST['color_name'] ?? ''));
         $hex   = sanitize_hex_color(wp_unslash($_POST['color_hex'] ?? ''));
         if ($color === '' || !$hex) {
@@ -571,7 +709,8 @@ function jetron_ts_handle_products($admin, $action) {
         }
         $admin['colors'] = $colors;
 
-        $label = $type === 'oversize' ? 'Оверсайз' : 'Базовая';
+        $labels = jetron_ts_type_labels();
+        $label  = isset($labels[$type]) ? $labels[$type] : 'Базовая';
         $entry = array(
             'id'        => sanitize_title($type . '-' . $color),
             'type'      => $type,
@@ -677,6 +816,7 @@ function jetron_ts_page() {
         'prices'   => 'Цены печати и надписи',
         'prints'   => 'Библиотека принтов',
         'products' => 'Изделия и цвета',
+        'catalog'  => 'Плотности и фасоны',
     );
     $nonce = wp_create_nonce(JETRON_TS_NONCE);
     $url   = admin_url('admin.php?page=jetron-tshirt');
@@ -684,7 +824,7 @@ function jetron_ts_page() {
     echo '<div class="wrap"><h1>Конструктор футболок</h1>';
     echo '<p style="margin:6px 0 14px"><a class="button" href="' . esc_url(home_url('/tshirt/')) . '" target="_blank">Открыть конструктор</a></p>';
     echo '<p style="max-width:760px;color:#50575e">Здесь настраивается то, что видит покупатель. '
-       . 'Цена самой футболки сюда не входит: она берётся из карточки товара. '
+       . 'Цена самой футболки задаётся на вкладке «Плотности и фасоны» — фасон × плотность. '
        . 'Изменения появляются у покупателей после обновления страницы конструктора.</p>';
 
     if (is_array($notice)) {
@@ -706,6 +846,8 @@ function jetron_ts_page() {
         jetron_ts_tab_prices($nonce);
     } elseif ($tab === 'prints') {
         jetron_ts_tab_prints($nonce);
+    } elseif ($tab === 'catalog') {
+        jetron_ts_tab_catalog($nonce);
     } else {
         jetron_ts_tab_products($nonce);
     }
@@ -713,6 +855,111 @@ function jetron_ts_page() {
 }
 
 /** Вкладка «Цены печати и надписи»: ступени по каждому методу + цена текста. */
+/**
+ * Вкладка «Плотности и фасоны». Клиент 12.09 просил настраивать плотности футболок и уметь
+ * прятать лишние кнопки. Плотность без цены бессмысленна: база заказа = ФАСОН × ПЛОТНОСТЬ,
+ * поэтому цены задаются в той же таблице.
+ * ⚠️ Скрытая строка остаётся в каталоге и цену сохраняет — прячется только кнопка у покупателя.
+ */
+function jetron_ts_tab_catalog($nonce) {
+    $admin  = jetron_ts_load('admin.json');
+    $rows   = isset($admin['densities']) && is_array($admin['densities']) && $admin['densities']
+        ? $admin['densities'] : jetron_ts_default_densities();
+    // Пока владелец не сохранял цены, показываем ДЕЙСТВУЮЩИЕ из конфига конструктора,
+    // а не пустые поля: иначе вкладка выглядит так, будто цен нет вовсе.
+    $prices = isset($admin['prices']['form']) && is_array($admin['prices']['form']) && $admin['prices']['form']
+        ? $admin['prices']['form'] : jetron_ts_config_form_prices();
+    $types  = jetron_ts_type_labels();
+    $saved  = array();
+    foreach ((isset($admin['formTypes']) && is_array($admin['formTypes']) ? $admin['formTypes'] : array()) as $t) {
+        if (!empty($t['id'])) { $saved[$t['id']] = $t; }
+    }
+
+    echo '<form method="post"><input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+    echo '<input type="hidden" name="jetron_ts_action" value="catalog">';
+
+    echo '<h2>Плотности</h2>';
+    echo '<p class="description" style="max-width:760px">Граммовка, подпись под кнопкой и цена самой футболки по каждому фасону. '
+       . 'Пустая цена означает «не продаём в этом сочетании». Галочка «Скрыть» убирает кнопку у покупателя, '
+       . 'но строку и цену сохраняет.</p>';
+    echo '<table class="widefat striped" style="max-width:900px"><thead><tr>'
+       . '<th style="width:90px">Граммы</th><th>Подпись</th>';
+    foreach ($types as $tid => $tlabel) {
+        echo '<th style="width:120px">' . esc_html($tlabel) . ', ₽</th>';
+    }
+    echo '<th style="width:80px">Скрыть</th></tr></thead><tbody>';
+
+    $i = 0;
+    // Три пустых строки в конце — чтобы добавить новую плотность без отдельной кнопки.
+    $all = array_merge($rows, array(array(), array(), array()));
+    foreach ($all as $row) {
+        $g     = isset($row['g']) ? $row['g'] : '';
+        $label = isset($row['label']) ? $row['label'] : '';
+        echo '<tr>';
+        echo '<td><input type="number" min="0" step="1" name="density_g[' . $i . ']" value="' . esc_attr($g) . '" style="width:80px"></td>';
+        echo '<td><input type="text" name="density_label[' . $i . ']" value="' . esc_attr($label) . '" class="regular-text" placeholder="например: 180 г — базовая"></td>';
+        foreach ($types as $tid => $tlabel) {
+            $val = ($g !== '' && isset($prices[$tid][(string) $g])) ? $prices[$tid][(string) $g] : '';
+            echo '<td><input type="number" min="0" step="1" name="density_price[' . esc_attr($tid) . '][' . $i . ']" value="' . esc_attr($val) . '" style="width:100px"></td>';
+        }
+        echo '<td style="text-align:center"><input type="checkbox" name="density_hidden[' . $i . ']" value="1"' . (!empty($row['hidden']) ? ' checked' : '') . '></td>';
+        echo '</tr>';
+        $i++;
+    }
+    echo '</tbody></table>';
+
+    echo '<h2 style="margin-top:26px">Фасоны</h2>';
+    echo '<p class="description" style="max-width:760px">Подпись на кнопке и её видимость. '
+       . '⚠️ Кнопка фасона появляется у покупателя только если на вкладке «Изделия и цвета» есть футболка этого фасона с картинкой.</p>';
+    echo '<table class="widefat striped" style="max-width:640px"><thead><tr><th style="width:180px">Фасон</th><th>Подпись у покупателя</th><th style="width:80px">Скрыть</th></tr></thead><tbody>';
+    foreach ($types as $tid => $default_label) {
+        $cur  = isset($saved[$tid]) ? $saved[$tid] : array();
+        $lab  = isset($cur['label']) ? $cur['label'] : $default_label;
+        echo '<tr><td><code>' . esc_html($tid) . '</code></td>';
+        echo '<td><input type="text" name="type_label[' . esc_attr($tid) . ']" value="' . esc_attr($lab) . '" class="regular-text"></td>';
+        echo '<td style="text-align:center"><input type="checkbox" name="type_hidden[' . esc_attr($tid) . ']" value="1"' . (!empty($cur['hidden']) ? ' checked' : '') . '></td></tr>';
+    }
+    echo '</tbody></table>';
+
+    submit_button('Сохранить плотности и фасоны');
+    echo '</form>';
+}
+
+// Действующие цены изделия из конфига конструктора: фасон => плотность => рубли.
+// Служебные ключи вида _note пропускаем — в конфиге рядом с матрицей лежат пояснения.
+function jetron_ts_config_form_prices() {
+    $file = ABSPATH . JETRON_TS_ROOT . 'src/config/tshirt-mock-config.json';
+    if (!is_readable($file)) {
+        return array();
+    }
+    $cfg = json_decode((string) file_get_contents($file), true);
+    if (!is_array($cfg) || !isset($cfg['prices']['form']) || !is_array($cfg['prices']['form'])) {
+        return array();
+    }
+    $out = array();
+    foreach ($cfg['prices']['form'] as $type => $row) {
+        if (strpos((string) $type, '_') === 0 || !is_array($row)) {
+            continue;
+        }
+        foreach ($row as $g => $price) {
+            if (is_numeric($g) && is_numeric($price)) {
+                $out[$type][(string) $g] = $price + 0;
+            }
+        }
+    }
+    return $out;
+}
+
+// Список по умолчанию — тот же, что в конфиге конструктора (скриншот клиента 29.07).
+function jetron_ts_default_densities() {
+    return array(
+        array('g' => 160, 'label' => '160 г — летняя'),
+        array('g' => 180, 'label' => '180 г — базовая'),
+        array('g' => 220, 'label' => '220 г — оптимальная'),
+        array('g' => 300, 'label' => '300 г — сверхплотная'),
+    );
+}
+
 function jetron_ts_tab_prices($nonce) {
     $prices  = jetron_ts_prices();
     $methods = isset($prices['print']['methods']) ? $prices['print']['methods'] : array();
@@ -832,16 +1079,28 @@ function jetron_ts_tab_prints($nonce) {
             echo '</div>';
             // Подпись и переключатель: до 30.07 признак был виден только по цвету подложки,
             // и клиент его не считывал («как узнать, какой я поставил пометку»).
-            $is_dark = !empty($item['dark']);
-            echo '<div style="font-size:11px;margin:3px 0 1px;color:' . ($is_dark ? '#3c434a' : '#787c82') . '">'
-               . ($is_dark ? 'для тёмной футболки' : 'для светлой футболки') . '</div>';
-            echo '<form method="post" style="margin-bottom:2px">';
+            // Три состояния (клиент 01.08). Старая запись без `tone` читается по `dark`,
+            // поэтому размётка, сделанная руками до 01.08, остаётся в силе.
+            $tone = isset($item['tone']) ? $item['tone'] : (!empty($item['dark']) ? 'dark' : 'light');
+            if (!in_array($tone, array('light', 'dark', 'any'), true)) {
+                $tone = !empty($item['dark']) ? 'dark' : 'light';
+            }
+            $tone_names = array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых');
+            echo '<div style="font-size:11px;margin:3px 0 1px;color:'
+               . ($tone === 'dark' ? '#3c434a' : ($tone === 'any' ? '#2271b1' : '#787c82')) . '">'
+               . esc_html($tone_names[$tone]) . '</div>';
+            echo '<form method="post" style="margin-bottom:2px;display:flex;gap:4px;justify-content:center">';
             echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<input type="hidden" name="jetron_ts_action" value="print_flip">';
+            echo '<input type="hidden" name="jetron_ts_action" value="print_tone">';
             echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
             echo '<input type="hidden" name="print_id" value="' . esc_attr($item['id'] ?? '') . '">';
-            echo '<button type="submit" class="button-link" style="font-size:12px">'
-               . ($is_dark ? 'сделать светлым' : 'сделать тёмным') . '</button>';
+            foreach (array('light' => 'свет', 'dark' => 'тёмн', 'any' => 'оба') as $key => $short) {
+                $on = ($tone === $key);
+                echo '<button type="submit" name="print_tone" value="' . esc_attr($key) . '" '
+                   . 'class="button-link" style="font-size:11px;'
+                   . ($on ? 'font-weight:700;text-decoration:none;color:#1d2327;cursor:default' : '')
+                   . '"' . ($on ? ' disabled' : '') . '>' . esc_html($short) . '</button>';
+            }
             echo '</form>';
             echo '<form method="post" onsubmit="return confirm(&quot;Убрать этот принт из библиотеки?&quot;)">';
             echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
@@ -858,10 +1117,18 @@ function jetron_ts_tab_prints($nonce) {
         echo '<input type="hidden" name="jetron_ts_action" value="print_add">';
         echo '<input type="hidden" name="cat_slug" value="' . esc_attr($slug) . '">';
         echo '<input type="file" name="print_file[]" accept=".png,.jpg,.jpeg,.webp" multiple required> ';
-        echo '<label style="margin:0 10px"><input type="checkbox" name="print_dark" value="1"> тёмные принты</label> ';
+        echo '<span style="margin:0 10px">';
+        foreach (array('light' => 'для светлых', 'dark' => 'для тёмных', 'any' => 'для любых') as $key => $label) {
+            echo '<label style="margin-right:8px"><input type="radio" name="print_tone" value="'
+               . esc_attr($key) . '"' . ($key === 'light' ? ' checked' : '') . '> ' . esc_html($label) . '</label>';
+        }
+        echo '</span>';
         submit_button('Загрузить принты', 'secondary', 'submit', false);
         echo '<p class="description" style="margin:6px 0 0">Можно выбрать сразу несколько файлов: '
-           . 'Ctrl (⌘) или Shift в окне выбора. Галочка «тёмные» применится ко всей пачке.</p>';
+           . 'Ctrl (⌘) или Shift в окне выбора. Выбранная пометка применится ко всей пачке.<br>'
+           . '<b>«Для любых» — это про прозрачный фон, а не про красоту.</b> Если у картинки фон '
+           . 'залит белым, на чёрной футболке получится белый прямоугольник. Проверка простая: '
+           . 'положите принт на чёрное, и если вокруг него появилось светлое поле — он не универсальный.</p>';
         echo '</form>';
 
         echo '<form method="post" style="margin-top:6px" '
@@ -918,9 +1185,11 @@ function jetron_ts_tab_products($nonce) {
     echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
     echo '<input type="hidden" name="jetron_ts_action" value="form_add">';
     echo '<table class="form-table"><tbody>';
-    echo '<tr><th scope="row">Фасон</th><td><select name="form_type">'
-       . '<option value="base">Базовая</option><option value="oversize">Оверсайз</option>'
-       . '</select></td></tr>';
+    echo '<tr><th scope="row">Фасон</th><td><select name="form_type">';
+    foreach (jetron_ts_type_labels() as $tid => $tlabel) {
+        echo '<option value="' . esc_attr($tid) . '">' . esc_html($tlabel) . '</option>';
+    }
+    echo '</select></td></tr>';
     echo '<tr><th scope="row">Название цвета</th><td>'
        . '<input type="text" name="color_name" class="regular-text" placeholder="Например: Хаки" required>'
        . '<p class="description">Так цвет будет подписан у покупателя.</p></td></tr>';

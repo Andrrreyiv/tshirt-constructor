@@ -3,22 +3,25 @@
 // внутри рамки: перетаскивание + масштаб за угол, живой показ «Ш×В см», клэмп 5×5..40×50.
 // Состояние принтов хранит LayerManager (дескрипторы), оверлей пересобирается из него.
 
-import { fitBoxInFrame } from './BoxFit.js?v=20260731a';
-import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260731a';
+import { fitBoxInFrame } from './BoxFit.js?v=20260920b';
+import { inkBounds, worthTrimming, fitBox } from './TrimImage.js?v=20260920b';
 
 export class PrintEditor {
   /**
-   * @param {{ frame, scaler, layers, getSide, getMethod, onChange }} opts
+   * @param {{ frame, scaler, layers, getSide, getMethod, onChange, onRemove }} opts
    *  frame: PrintFrame · scaler: CmScaler · layers: LayerManager
    *  getSide()/getMethod(): текущая сторона/метод · onChange(): пересчитать цену
+   *  onRemove(d): слой убрали крестиком — панель решает, что подчистить у себя
+   *  (клиент 26.08: удалили надпись с футболки — поле ввода обязано опустеть)
    */
-  constructor({ frame, scaler, layers, getSide, getMethod, onChange }) {
+  constructor({ frame, scaler, layers, getSide, getMethod, onChange, onRemove }) {
     this.frame = frame;
     this.scaler = scaler;
     this.layers = layers;
     this.getSide = getSide;
     this.getMethod = getMethod;
     this.onChange = onChange || (() => {});
+    this.onRemove = onRemove || (() => {});
     this.frameEl = null;
   }
 
@@ -107,12 +110,63 @@ export class PrintEditor {
   }
 
   /** Добавить текстовый слой. */
-  addText({ text, color, fontId = null }) {
+  /**
+   * Добавить текстовый слой. Возвращает id — по нему текст потом правится на лету.
+   * ⚠️ silent — для набора без кнопки «Добавить»: onChange перестраивает ВСЮ панель,
+   * а вместе с ней и поле ввода, поэтому фокус слетал бы после первой же буквы
+   * (замер: узел поля менялся на каждом символе). Цену в этом режиме обновляет
+   * вызывающая сторона.
+   */
+  addText({ text, color, fontId = null, silent = false }) {
     const side = this.getSide();
     const d = { id: uid(), kind: 'text', text, color, fontId, fx: 0.1, fy: 0.42, fw: 0.8, fh: 0.16 };
     this.layers.add(side, d);
     if (this.frameEl) this._renderLayer(d);
-    this.onChange();
+    if (!silent) this.onChange();
+    return d.id;
+  }
+
+  /**
+   * Обновить текст уже лежащего слоя, НЕ пересоздавая его. Клиент 01.08: «убрать
+   * кнопочку добавить… как только он начал что-то печатать, автоматически всё
+   * переносится на футболку, и он сразу видит, что печатает». Пересборка слоя на
+   * каждый символ сбрасывала бы фокус в поле ввода, поэтому правим существующий узел.
+   */
+  updateTextLayer(id, text) {
+    const d = this.layers.list(this.getSide()).find((x) => x.id === id);
+    if (!d || (d.kind ?? 'print') !== 'text') return false;
+    d.text = text;
+    const body = d._el && d._el.querySelector('.pf-text__body');
+    if (body) body.textContent = text;
+    this._applyTextSize(d);
+    return true;
+  }
+
+  /**
+   * Перекрасить и переодеть уже нарисованные надписи ПО МЕСТУ, без пересборки слоёв.
+   * Дескрипторы к этому моменту уже поправлены через LayerManager.restyleKind.
+   * Пересборка здесь недопустима: пикер цвета и список шрифтов живут в той же панели,
+   * а onChange перестраивает панель целиком и захлопнул бы раскрытый список (та же
+   * ловушка, что 01.08 сбрасывала фокус в поле ввода на каждом символе).
+   */
+  refreshTextStyle() {
+    for (const d of this.layers.list(this.getSide())) {
+      if ((d.kind ?? 'print') !== 'text') continue;
+      const body = d._el && d._el.querySelector('.pf-text__body');
+      if (!body) continue;
+      body.style.color = d.color || '#111';
+      body.style.fontFamily = d.fontId ? textFontFamily(d.fontId) : '';
+    }
+  }
+
+  /** Убрать слой по id (пустое поле ввода — надписи на футболке быть не должно). */
+  removeLayer(id, { silent = false } = {}) {
+    const side = this.getSide();
+    const d = this.layers.list(side).find((x) => x.id === id);
+    if (!d) return false;
+    this.layers.remove(side, d);
+    if (d._el) d._el.remove();
+    if (!silent) this.onChange();
     return true;
   }
 
@@ -146,9 +200,7 @@ export class PrintEditor {
     this._wireResize(handle, d);
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.layers.remove(this.getSide(), d);
-      wrap.remove();
-      this.onChange();
+      this._deleteLayer(d, wrap);
     });
   }
 
@@ -178,10 +230,20 @@ export class PrintEditor {
     this._wireResize(handle, d, () => this._applyTextSize(d));
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.layers.remove(this.getSide(), d);
-      wrap.remove();
-      this.onChange();
+      this._deleteLayer(d, wrap);
     });
+  }
+
+  /**
+   * Крестик на слое: убрать дескриптор, снять узел и доложить наверх, ЧТО убрали.
+   * Редактор про поле ввода не знает, а панель — знает: клиент 26.08 требует, чтобы
+   * вместе с надписью на футболке опустело и поле «Добавить текст».
+   */
+  _deleteLayer(d, wrap) {
+    this.layers.remove(this.getSide(), d);
+    if (wrap) wrap.remove();
+    this.onRemove(d);
+    this.onChange();
   }
 
   /** Размер шрифта текста ≈ доля высоты рамки в px (реколибруется при reflow). */
@@ -197,12 +259,48 @@ export class PrintEditor {
     return this.frameEl.getBoundingClientRect();
   }
 
+  /**
+   * Один жест = один набор слушателей и ОДИН снос.
+   * ⚠️ Клиент 25.08: «поиграй с ним по увеличиванию по уменьшению, потом курсор подводишь,
+   * щёлкаешь, и он сам начинает уменьшаться до минимального размера». Причина была здесь:
+   * слушатели вешались в pointerdown, а снимались ТОЛЬКО в pointerup. Браузер шлёт
+   * pointercancel (уход курсора за окно, тач-скролл, потеря захвата) — pointerup при этом
+   * не приходит, старый move остаётся жить и держит в замыкании startX/w0 ПРОШЛОГО жеста.
+   * Следующее нажатие поднимало второй move, а первый на каждое движение мыши пересчитывал
+   * размер от устаревшей точки старта: если прошлый жест уменьшал принт, dw оставалось
+   * отрицательным, и слой полз в минимум сам по себе.
+   */
+  _beginGesture(target, e, onMove, onEnd) {
+    this._endGesture(); // страховка: живого жеста к этому моменту быть не должно
+    const end = (ev) => {
+      if (this._gesture !== g) return;
+      this._gesture = null;
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', end);
+      target.removeEventListener('pointercancel', end);
+      target.removeEventListener('lostpointercapture', end);
+      try { target.releasePointerCapture(e.pointerId); } catch { /* захват уже потерян */ }
+      if (onEnd) onEnd(ev);
+    };
+    const g = { end };
+    this._gesture = g;
+    try { target.setPointerCapture(e.pointerId); } catch { /* нет захвата — жест всё равно рабочий */ }
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', end);
+    target.addEventListener('pointercancel', end);
+    target.addEventListener('lostpointercapture', end);
+  }
+
+  /** Оборвать текущий жест (смена слоя, перерисовка, новое нажатие). */
+  _endGesture() {
+    if (this._gesture) this._gesture.end();
+  }
+
   _wireDrag(wrap, d) {
     wrap.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('pf-print__handle')) return;
       if (e.target.classList.contains('pf-print__del')) return;
       e.preventDefault();
-      wrap.setPointerCapture(e.pointerId);
       const r = this._frameRect();
       const startX = e.clientX, startY = e.clientY;
       const x0 = d.fx, y0 = d.fy;
@@ -214,13 +312,7 @@ export class PrintEditor {
         wrap.style.left = pct(d.fx);
         wrap.style.top = pct(d.fy);
       };
-      const up = (ev) => {
-        wrap.releasePointerCapture(e.pointerId);
-        wrap.removeEventListener('pointermove', move);
-        wrap.removeEventListener('pointerup', up);
-      };
-      wrap.addEventListener('pointermove', move);
-      wrap.addEventListener('pointerup', up);
+      this._beginGesture(wrap, e, move);
     });
   }
 
@@ -228,7 +320,6 @@ export class PrintEditor {
     handle.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      handle.setPointerCapture(e.pointerId);
       const r = this._frameRect();
       const startX = e.clientX, startY = e.clientY;
       const w0 = d.fw, h0 = d.fh;
@@ -256,14 +347,7 @@ export class PrintEditor {
         w.style.height = pct(box.fh);
         if (isText) { if (onResize) onResize(); } else { this._showCm(d); }
       };
-      const up = () => {
-        handle.releasePointerCapture(e.pointerId);
-        handle.removeEventListener('pointermove', move);
-        handle.removeEventListener('pointerup', up);
-        this.onChange();
-      };
-      handle.addEventListener('pointermove', move);
-      handle.addEventListener('pointerup', up);
+      this._beginGesture(handle, e, move, () => this.onChange());
     });
   }
 

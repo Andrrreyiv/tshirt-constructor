@@ -77,7 +77,14 @@ body {
   letter-spacing: -.006em;
   color: var(--ink);
   background: var(--bg);
-  min-height: 100vh;
+  /* ⚠️ Здесь стояло `min-height: 100vh`, и это была вторая причина дефекта 25.08 («ползёт
+     до бесконечности»). Внутри iframe `100vh` равен высоте САМОЙ РАМКИ, а рамке высоту
+     ставит скрипт сайта по высоте документа. Документ дотягивался до новой высоты рамки,
+     `documentElement.scrollHeight` всегда на 16px больше body — и каждый кадр добавлял
+     ещё 16px, без конца (замер на стенде: 3766 → 3782 → 3798 → 3814 → …).
+     Возвращать нельзя, в том числе через `100dvh` и `100%`: любая привязка высоты документа
+     к высоте окна замыкает петлю снова. Фон при этом не страдает: у html своего фона нет,
+     поэтому фон body по правилам CSS закрашивает весь холст. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -115,12 +122,19 @@ body {
   position: relative; z-index: 1;
   width: 100%;
 }
-/* Обе стороны держатся в ОДНОМ РЯДУ и тянутся по месту: фиксированные пиксели
-   не влезали вдвоём ни в колонку сцены на десктопе, ни в ландшафт телефона.
-   340px — потолок, чтобы на широком экране мокап не раздувало. */
+/* Колонка тянется по месту: фиксированные пиксели не влезали ни в колонку сцены
+   на десктопе, ни в ландшафт телефона.
+   ⚠️ Потолка 340px здесь БОЛЬШЕ НЕТ. Он стоял с тех пор, когда сцена показывала ОБЕ
+   стороны в одном ряду. 30.07 раскладку переделали на одну активную сторону
+   (renderViews пропускает неактивную), а потолок остался и зажимал единственную
+   футболку: сцена 756px, карточка 340px — больше половины ширины пустовало.
+   Клиент 01.08 (голос): «я бы ещё больше увеличил, чтобы вообще по краям отступов
+   не было… принты очень маленькие, человек что-то вставит и не поймёт, красиво или нет».
+   Ширину теперь задаёт сцена; на широком экране её держит max-width у #app.
+   Если когда-нибудь вернут показ ДВУХ сторон разом — потолок сюда придётся вернуть. */
 .canvas-col {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
-  flex: 1 1 200px; min-width: 0; max-width: 340px;
+  flex: 1 1 200px; min-width: 0;
 }
 .canvas-wrap {
   background: var(--stage-card);
@@ -332,6 +346,10 @@ body {
 
 .field { margin-bottom: 16px; }
 .field:last-child { margin-bottom: 0; }
+/* Гнездо метода нанесения. На чистой футболке оно пустует, и поле над ним перестаёт быть
+   последним — под ним оставались лишние 16px (замерено в браузере 25.08). Отрицательный
+   отступ схлопывается с этими 16px в ноль; :has() не берём, он моложе части браузеров. */
+.method-slot:empty { margin-top: -16px; }
 .field__label {
   display: block;
   font-size: 12px; font-weight: 700; color: var(--muted);
@@ -578,8 +596,7 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   .lib__cell { min-height: 56px; }
   .design-row__btn { min-height: 46px; }
   .design-row__input { min-height: 46px; }
-  .design-row__add { min-height: 44px; }
-  .text-badge { min-height: 44px; }
+  .text-seg .seg__btn { min-height: 46px; }
   .font-opt { min-height: 48px; }
   .text-opts__picker { width: 52px; height: 40px; }
   /* Крестик и ручка принта живут на самом макете: раздувать их визуально нельзя —
@@ -621,49 +638,46 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   border: 1px solid var(--line-strong);
 }
 
-/* Строка надписи: пока пусто — выглядит как подпись «Добавить текст» из макета. */
-.design-row--text { cursor: default; gap: 8px; }
+/* Строка надписи. Клиент 20.09: «где поле добавить текст, как-то его выделить, а то его
+   по факту нет» — поле было прозрачным, без рамки, и на кремовой плашке выглядело подписью.
+   Теперь это белое поле с рамкой, как поля фамилии и номера в конструкторе формы. */
+/* Ряд текста идёт столбиком: подпись сверху, поле под ней. В строку они не встают —
+   поле тогда сжимается до неприличия, а клиент 01.08 уже просил обратного. */
+.design-row--text { cursor: default; gap: 8px; flex-direction: column; align-items: stretch; }
+/* Сегмент «Шрифт | Цвет» ВНУТРИ бежевой плашки, на всю её ширину (клиент 20.09, голосовое:
+   «они не выходят из этого блока… отдельно и на всю ширину самого этого блока»).
+   Своего фона и рамки у него нет: плашка уже бежевая, и белая залитая кнопка читается
+   на ней ровно так же, как активная в переключателе «Грудь | Спина». */
+.text-seg { background: #fff8; border: 1.5px solid var(--line-strong); padding: 4px; }
+.text-seg .seg__btn { padding: 10px 8px; }
+/* Кружок текущего цвета вместо подзаголовка у кнопки «Цвет». */
+.text-seg__dot {
+  display: block; width: 16px; height: 16px; margin: 3px auto 0;
+  border-radius: 50%; border: 1.5px solid var(--line-strong);
+  box-shadow: inset 0 0 0 1px #fff;
+}
 .design-row__input {
   flex: 1; min-width: 0;
-  padding: 11px 4px; border: 0; background: none;
+  padding: 11px 13px;
+  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
+  background: #fff;
   color: var(--ink); font-family: inherit; font-size: 15px;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
 }
 .design-row__input::placeholder { color: var(--ink-2); opacity: 1; }
-.design-row__input:focus { outline: none; }
+.design-row__input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-ring); }
 .design-row__input:focus::placeholder { color: var(--muted); }
-.design-row__add {
-  flex: 0 0 auto; padding: 9px 14px;
-  border: 0; border-radius: 10px;
-  background: var(--brand); color: #fff;
-  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
-}
-.design-row__add:hover { background: var(--brand-strong); }
-.design-row__add[hidden] { display: none; }
 
-.text-badge {
-  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
-  padding: 9px 14px; border: 0; border-radius: 999px;
-  background: #fff; color: var(--brand-strong);
-  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
-  box-shadow: var(--sh-sm);
+/* На 360 px длинное имя шрифта («Prosto One») в подзаголовке кнопки иначе не помещается. */
+@media (max-width: 560px) {
+  .text-seg .seg__btn { font-size: 13.5px; }
+  .text-seg .seg__btn small { font-size: 10px; }
 }
-.text-badge:hover { color: var(--brand); }
-.text-badge__dot {
-  width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
-  background: var(--success);
-  position: relative;
-}
-/* Галочка внутри точки — как в макете клиента. */
-.text-badge__dot::after {
-  content: ''; position: absolute;
-  left: 3.5px; top: 3px; width: 4px; height: 2px;
-  border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff;
-  transform: rotate(-45deg);
-}
-
 /* Раскрытый выбор шрифта и цвета надписи. */
 .text-opts { margin-top: 10px; }
-.text-opts[hidden] { display: none; }
+/* ⚠️ Гасить явно: у .text-opts, .font-list и строки цвета есть свой `display`, а он
+   перебивает атрибут hidden — иначе «скрытая» панель остаётся на экране. */
+.text-opts[hidden], .font-list[hidden], .text-opts__color[hidden] { display: none; }
 .font-list { display: flex; flex-direction: column; gap: 6px; }
 .font-opt {
   padding: 10px 12px; text-align: left; cursor: pointer;
@@ -673,8 +687,13 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 }
 .font-opt:hover { border-color: var(--brand); background: #fff; }
 .font-opt--active { border-color: var(--brand); background: var(--brand-soft); }
-/* Образец нарисован самим шрифтом — выбирают глазами, а не по названию. */
-.font-opt__sample { font-size: 20px; line-height: 1.2; }
+/* Образец нарисован самим шрифтом — выбирают глазами, а не по названию.
+   ⚠️ Цвет ВСЕГДА тёмный и цвету надписи на футболке не подчиняется. Клиент 26.08
+   (голос 11-05-58): «сделал футболку чёрный и поменял шрифт на белый цвет… где поля
+   выбор шрифтов, они стали белыми, их вообще не видно… Они должны быть всегда чёрными.
+   Независимо от того, что выбирает человек на футболку». Список лежит на белой панели,
+   поэтому белая надпись делала его невидимым. */
+.font-opt__sample { font-size: 20px; line-height: 1.2; color: var(--ink); }
 .text-opts__color {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-top: 10px; font-size: 13.5px; color: var(--ink-2);
@@ -691,9 +710,12 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
 }
+/* 1100px, а не 900: клиент 01.08 попросил пятый столбец принтов, а в прежней ширине
+   плитка ужалась бы со 147 до 115px — принты и так «очень маленькие, человек вставит
+   и не поймёт, красиво или нет». С этой шириной пятый столбец влезает, не мельчая. */
 .libm__card {
   background: var(--surface); border-radius: var(--r-xl);
-  width: 100%; max-width: 900px; max-height: 90vh;
+  width: 100%; max-width: 1100px; max-height: 90vh;
   display: flex; flex-direction: column;
   box-shadow: var(--sh-lg); overflow: hidden;
 }
@@ -727,18 +749,128 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   display: grid; grid-template-columns: 1fr 220px; gap: 18px;
   padding: 16px 22px 22px; overflow: hidden; min-height: 0;
 }
+/* Пять столбцов — просьба клиента 01.08: «просто пятую колоночку добавить в столбцы,
+   где вот принты разные». На узком окне их режет правило ниже. */
 .libm__grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
   overflow-y: auto; align-content: start; padding-right: 4px;
 }
+/* Обёртка появилась вместе с лупой (клиент 09.09): кнопка «посмотреть крупнее» обязана
+   быть СЕСТРОЙ кнопки выбора, а не лежать внутри неё, иначе клик по лупе всплывал бы
+   в выбор принта. Квадрат плитки держит теперь обёртка. */
+.libm__cellwrap { position: relative; aspect-ratio: 1; }
 .libm__cell {
-  aspect-ratio: 1; padding: 6px; cursor: pointer;
+  width: 100%; height: 100%; padding: 6px; cursor: pointer;
   background: var(--surface-2); border: 1.5px solid var(--line); border-radius: var(--r-sm);
   transition: border-color .15s var(--ease), transform .15s var(--ease);
 }
 .libm__cell--dark { background: #2b2f36; }
-.libm__cell:hover { border-color: var(--brand); transform: translateY(-2px); }
+.libm__cellwrap:hover .libm__cell { border-color: var(--brand); transform: translateY(-2px); }
+
+/* Лупа. На мыши проявляется по наведению, чтобы не рябить в сетке из 82 плиток;
+   на тач-экранах наведения нет — там она видна всегда (правило ниже). */
+.libm__zoom {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .92); color: var(--ink);
+  box-shadow: var(--sh-sm); cursor: pointer;
+  opacity: 0; transition: opacity .15s var(--ease), background .15s var(--ease);
+}
+.libm__cellwrap:hover .libm__zoom, .libm__zoom:focus-visible { opacity: 1; }
+.libm__zoom:hover { background: #fff; color: var(--brand); }
+@media (hover: none) {
+  .libm__zoom { opacity: 1; }
+}
 .libm__thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* Клиент 01.08: «чтобы нельзя было открыть принт в новом окне и скачать, правая кнопка
+   чтобы не работала». Перетаскивание и выделение картинок отключены здесь, правая кнопка —
+   в TshirtApp. ⚠️ Это замедлитель, а не защита: адрес файла всё равно виден в инструментах
+   разработчика. Настоящая защита в том, что браузеру отдаётся ПРЕВЬЮ 467×600, а не оригинал
+   3111×4000 — перепечатать с него нельзя. */
+.stage__img, .stage__canvas img, .pf-print__img, .sideprev__img, .sideprev__print,
+.libm__thumb, .design-row__thumb {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ── Просмотр принта крупно ───────────────────────────────
+   Клиент 09.09 (голосовое 14:19): «нет кнопочки, как в Ютубе, увеличить… чтобы принт
+   открылся, ну как бы НЕ НА ВЕСЬ ЭКРАН, а хотя бы в доступное обозримое поле».
+   Отсюда max-width 680px и поля вокруг: это увеличение, а не полноэкранный режим.
+
+   ⚠️ Размеры в ПРОЦЕНТАХ от окна библиотеки, а не в vh. Конструктор стоит в iframe без
+   своей прокрутки, и внутри него `100vh` — это высота РАМКИ, а не экрана покупателя
+   (ровно на этом сайт уезжал вниз без конца, см. OverlayPin.test.js). Высоту .libm
+   пересчитывает скрипт, поэтому проценты от неё — единственная честная мера. */
+.libp {
+  position: absolute; inset: 0; z-index: 310;
+  background: rgba(20, 16, 8, .62);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.libp__box {
+  position: relative;
+  max-width: min(680px, 92%); max-height: 88%;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; border-radius: var(--r-xl);
+  background: var(--surface); box-shadow: var(--sh-lg);
+}
+/* Та же подложка, что у плитки: белый принт на белом фоне иначе не виден. */
+.libp__box--dark { background: #2b2f36; }
+.libp__img {
+  min-height: 0; max-width: 100%; object-fit: contain; border-radius: var(--r-sm);
+  -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.libp__close {
+  position: absolute; top: -14px; right: -14px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%; border: 0;
+  background: var(--surface); color: var(--muted);
+  font-size: 22px; line-height: 1; cursor: pointer; box-shadow: var(--sh-sm);
+}
+.libp__close:hover { background: var(--line); color: var(--ink); }
+.libp__nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 40px; height: 40px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, .92); color: var(--ink);
+  font-size: 26px; line-height: 1; cursor: pointer; box-shadow: var(--sh-sm);
+}
+.libp__nav:hover { background: #fff; color: var(--brand); }
+.libp__nav--prev { left: -18px; }
+.libp__nav--next { right: -18px; }
+.libp__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-shrink: 0;
+}
+.libp__counter { font-size: 13px; color: var(--muted); }
+.libp__box--dark .libp__counter { color: #b9bfc8; }
+.libp__take {
+  padding: 10px 20px; border-radius: 999px; border: 0;
+  background: var(--brand); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.libp__take:hover { background: var(--brand-strong); }
+
+/* На телефоне окно библиотеки занимает весь экран, и стрелки, вынесенные наружу,
+   упирались бы в края. Здесь они уходят внутрь картинки. */
+@media (max-width: 760px) {
+  .libp { padding: 12px; }
+  .libp__box { max-width: 100%; max-height: 92%; }
+  .libp__close { top: 6px; right: 6px; }
+  .libp__nav--prev { left: 2px; }
+  .libp__nav--next { right: 2px; }
+}
+
+.libm__more {
+  /* Страховка на случай неверно помеченного тона: неприметная, но всегда доступна. */
+  grid-column: 1 / -1; justify-self: center; margin-top: 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 13px; text-decoration: underline; padding: 8px 12px;
+}
+.libm__more:hover { color: var(--brand); }
+
 .libm__empty { grid-column: 1 / -1; color: var(--muted); font-size: 14px; padding: 20px 0; }
 
 .libm__cats {
@@ -754,6 +886,12 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 .libm__cat--active { background: var(--brand); color: #fff; font-weight: 700; }
 .libm__cat-label { flex: 1; }
 .libm__cat-count { font-size: 12px; opacity: .7; }
+
+/* Окно уже своей максимальной ширины: пятый столбец сделал бы плитки мельче, чем было
+   при четырёх, поэтому на средних экранах столбцов четыре. */
+@media (max-width: 1080px) {
+  .libm__grid { grid-template-columns: repeat(4, 1fr); }
+}
 
 @media (max-width: 760px) {
   .libm { padding: 0; }
@@ -788,13 +926,23 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   background: linear-gradient(180deg, #8f8e8c 0%, #9d9c9a 6%, #9d9c9a 94%, #8f8e8c 100%);
 }
 .sideprev__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.sideprev__item { position: absolute; overflow: hidden; }
+/* container-type даёт `cqh` — высоту САМОГО слоя, см. .sideprev__text ниже. */
+.sideprev__item { position: absolute; overflow: hidden; container-type: size; }
 .sideprev__print { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* ⚠️ Миниатюра обязана повторять закон настоящей надписи (PrintEditor._applyTextSize:
+   размер шрифта = высота слоя × 0.6), иначе она врёт про то, что покупатель получит.
+   Клиент 26.08 (голос 11-05-58): «на основной футболке написано смирнов, а на миниатюре
+   написано мирно, первые и последние буквы не отображаются». Причина была ровно в этом:
+   размер стоял `clamp(6px, 2.2vw, 13px)` — он зависел от ширины ЭКРАНА, а не от коробки
+   слоя, поэтому в маленьком превью шрифт оказывался непропорционально крупным и слово
+   не влезало. Первая строка font-size — запасная, для браузеров без единиц контейнера. */
 .sideprev__text {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; line-height: 1;
-  font-size: clamp(6px, 2.2vw, 13px); text-align: center; overflow: hidden;
+  font-family: var(--font-display); font-weight: 700; line-height: 1.05;
+  text-align: center; white-space: nowrap; overflow: hidden;
+  font-size: clamp(6px, 2.2vw, 13px);
+  font-size: 60cqh;
 }
 
 /* ── Детализация заказа (макет клиента 29.07) ──────────────────────────
@@ -813,3 +961,54 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 }
 .order__details[open] .order__details-sum::after { transform: rotate(180deg); }
 @media (pointer: coarse) { .order__details-sum { min-height: 44px; } }
+
+/* ── Оформление заказа ────────────────────────────────────
+   Окно подтверждения перед уходом в корзину. Конструктор живёт в iframe без своей
+   прокрутки, поэтому оверлей fixed — ровно та же причина, что у окна библиотеки
+   (absolute входил бы в высоту документа и раскачивал авто-высоту рамки). */
+.order-overlay {
+  position: fixed; inset: 0; z-index: 320;
+  background: rgba(30, 24, 12, .5);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.order-card {
+  background: var(--surface); border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  padding: 22px; width: 100%; max-width: 460px;
+  max-height: 88%; overflow-y: auto;
+}
+.order-card h3 { margin: 0 0 12px; font-family: var(--font-display); font-size: 20px; color: var(--ink); }
+.order-spec {
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--surface-2); border-radius: var(--r-md);
+  font: inherit; font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
+  white-space: pre-wrap; word-break: break-word;
+}
+.order-qty { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+.order-qty input {
+  width: 90px; padding: 8px 10px;
+  border: 1.5px solid var(--line); border-radius: var(--r-sm); font: inherit;
+}
+.order-total { margin: 12px 0 2px; font-size: 15px; color: var(--ink); }
+.order-actions { display: flex; gap: 10px; margin-top: 16px; }
+.order-actions .cta { flex: 1; }
+.order-actions .ghost {
+  padding: 10px 18px; border-radius: 999px;
+  border: 1.5px solid var(--line); background: transparent;
+  color: var(--ink-2); font: inherit; cursor: pointer;
+}
+.order-actions .ghost:hover { background: var(--surface-2); }
+.order-error { margin: 12px 0 0; color: #c0392b; font-size: 13.5px; }
+/* Подсказка «добавьте принт» — короткий тост, не модалка: она бы требовала закрытия. */
+.order-note {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 330; max-width: 80vw;
+  padding: 12px 18px; border-radius: 999px;
+  background: rgba(27, 27, 27, .92); color: #fff; font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .order-card { max-width: 100%; padding: 18px; }
+  .order-actions { flex-direction: column; }
+}

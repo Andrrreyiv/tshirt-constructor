@@ -5,8 +5,9 @@
 //
 // Браузерный слой (DOM + сеть). Чистая математика коробки — в ZoneBox.js.
 
-import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260731a';
-import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260731a';
+import { moveBox, scaleBox, alignBoxToCm } from './ZoneBox.js?v=20260920b';
+import { FULL_CROP, moveCrop, scaleCrop, cropFitsZones, minCropFor, isFullCrop } from './Crop.js?v=20260920b';
+import { clampStageWidth, widthFromDrag, DEFAULT_STAGE_WIDTH } from './StageWidth.js?v=20260920b';
 
 const AJAX_URL = '/wp-admin/admin-ajax.php';
 
@@ -28,6 +29,8 @@ class TshirtZoneEditor {
     this.cropMode = false;   // правим кадр мокапа, а не зону печати
     this.cropEl = null;
     this.cropBtn = null;
+    this.widthHandle = null;   // ручка ширины поля на правом крае сцены
+    this.widthLabel = null;
   }
 
   mount() {
@@ -42,6 +45,7 @@ class TshirtZoneEditor {
       return r;
     };
     this.armAll();
+    this.mountWidthHandle();
     this.fetchNonce();
   }
 
@@ -72,7 +76,7 @@ class TshirtZoneEditor {
     Object.assign(title.style, { fontWeight: '600', fontSize: '14px' });
 
     const hint = document.createElement('div');
-    hint.textContent = 'Тяните рамку, чтобы переместить, за круг в углу — чтобы изменить размер. Пропорции 40×50 держатся сами.';
+    hint.textContent = 'Рамка на футболке — это зона печати: тяните её, чтобы переместить, за круг в углу — чтобы изменить размер (пропорции 40×50 держатся сами). Чтобы сама футболка стала крупнее, нажмите «Увеличить футболку».';
     Object.assign(hint.style, { opacity: '0.85', fontSize: '12px' });
 
     const status = document.createElement('div');
@@ -90,10 +94,12 @@ class TshirtZoneEditor {
     // размеры футболки»). Режет серые поля вокруг изделия, сам файл не трогает.
     const cropRow = document.createElement('div');
     Object.assign(cropRow.style, { display: 'flex', gap: '8px' });
-    this.cropBtn = this.mkButton('Кадрировать мокап', 'rgba(224,122,31,0.92)', () => this.toggleCrop());
+    // Названия — словами клиента. «Кадрировать мокап» ему ничего не говорило: он искал,
+    // как увеличить футболку, и не связывал это с кадрированием.
+    this.cropBtn = this.mkButton('Увеличить футболку', 'rgba(224,122,31,0.92)', () => this.toggleCrop());
     cropRow.append(
       this.cropBtn,
-      this.mkButton('Весь мокап', 'rgba(255,255,255,0.18)', () => this.resetCrop())
+      this.mkButton('Показать целиком', 'rgba(255,255,255,0.18)', () => this.resetCrop())
     );
 
     bar.append(title, hint, status, row, cropRow);
@@ -129,10 +135,14 @@ class TshirtZoneEditor {
       frameEl.style.cursor = 'move';
 
       const grip = document.createElement('div');
+      // Внутри рамки, а не снаружи: у .stage__canvas стоит overflow:hidden, и маркер,
+      // вынесенный за край, срезается вместе с рамкой, если зону подвинуть к краю сцены.
+      // Ровно на этом ловился маркер кадра (см. showCropRect).
       Object.assign(grip.style, {
-        position: 'absolute', right: '-9px', bottom: '-9px', width: '18px', height: '18px',
+        position: 'absolute', right: '3px', bottom: '3px', width: '20px', height: '20px',
         borderRadius: '50%', background: '#2f6fe0', border: '2px solid #fff',
-        cursor: 'nwse-resize', zIndex: '40'
+        boxShadow: '0 1px 5px rgba(0,0,0,0.45)', cursor: 'nwse-resize', zIndex: '40',
+        touchAction: 'none'
       });
       frameEl.append(grip);
 
@@ -157,10 +167,21 @@ class TshirtZoneEditor {
     });
   }
 
-  /** Правим шаблон и просим приложение пересобрать зоны — как при старте. */
+  /**
+   * Правим шаблон и просим приложение пересобрать зоны — как при старте.
+   * ⚠️ В ДЕТСКОМ режиме пишем в отдельную детскую коробку. Раньше натянутое значение
+   * уходило во взрослый шаблон, а детская выводилась из него умножением на 30/40,
+   * поэтому рамка откатывалась на четверть назад: замер на боевом — тянешь до 0.5,
+   * получаешь 0.375. Клиент 01.08: «не могу увеличить вот этот квадрат».
+   */
   applyBox(view, box) {
-    const tpl = this.app.config.zoneTemplate.find(z => z.view === view);
-    if (tpl) tpl.box = box;
+    if (this.app.state.age === 'child') {
+      const cz = this.app.config.childZones || (this.app.config.childZones = {});
+      cz[view] = box;
+    } else {
+      const tpl = this.app.config.zoneTemplate.find(z => z.view === view);
+      if (tpl) tpl.box = box;
+    }
     this.app.buildZones();
     this.app.render();
     this.armAll();
@@ -228,13 +249,13 @@ class TshirtZoneEditor {
   toggleCrop() {
     this.cropMode = !this.cropMode;
     this.app._suppressCrop = this.cropMode;
-    if (this.cropBtn) this.cropBtn.textContent = this.cropMode ? 'Готово с кадром' : 'Кадрировать мокап';
+    if (this.cropBtn) this.cropBtn.textContent = this.cropMode ? 'Готово' : 'Увеличить футболку';
     this.app.buildZones();
     this.app.render();
     this.armAll();
     if (this.cropMode) {
       this.showCropRect();
-      this.setStatus('Тяните оранжевую рамку, за угол — размер. Зона печати должна остаться внутри.');
+      this.setStatus('Тяните оранжевый кружок ⤡ в правом нижнем углу ВНУТРЬ — футболка станет крупнее. Саму рамку можно двигать.');
     } else {
       this.hideCropRect();
       this.setStatus('Кадр применён, не забудьте сохранить.');
@@ -271,11 +292,25 @@ class TshirtZoneEditor {
       border: '2px solid #e07a1f', boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
       cursor: 'move', zIndex: '50'
     });
+    // ⚠️ Маркер держим ВНУТРИ рамки. Раньше он висел на `right/bottom: -9px`, то есть снаружи,
+    // а стартовый кадр равен всему мокапу — и `overflow:hidden` у .stage__canvas его срезал.
+    // Замер на боевом 31.07: маркер выходил за правый и нижний край сцены на 7 px каждый,
+    // от круга 18 px в углу оставался кусочек ~11 px, поверх скруглённого угла и на тёмно-сером
+    // фоне. Технически ухватить можно, НАЙТИ практически нельзя — и это ровно то состояние,
+    // с которого начинает каждая модель. Клиент писал дважды: «не знаю, как увеличить размеры
+    // футболки» (30.07) и «не понимаю, за что двигать, она не двигается» (31.07).
+    // Прошлый замер «механика исправна» был верен и потому бесполезен: события слались
+    // программно по координатам, то есть проверяли обработчик, а не находимость маркера.
     const grip = document.createElement('div');
+    grip.textContent = '⤡';
+    grip.title = 'Тяните внутрь, чтобы приблизить футболку';
     Object.assign(grip.style, {
-      position: 'absolute', right: '-9px', bottom: '-9px', width: '18px', height: '18px',
-      borderRadius: '50%', background: '#e07a1f', border: '2px solid #fff',
-      cursor: 'nwse-resize', zIndex: '51'
+      position: 'absolute', right: '4px', bottom: '4px', width: '26px', height: '26px',
+      borderRadius: '50%', background: '#e07a1f', border: '3px solid #fff',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.5)', cursor: 'nwse-resize', zIndex: '51',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', font: '700 15px/1 system-ui, sans-serif', userSelect: 'none',
+      touchAction: 'none'
     });
     box.append(grip);
     stage.append(box);
@@ -363,6 +398,114 @@ class TshirtZoneEditor {
     });
   }
 
+
+  // ── Ширина поля с футболкой ────────────────────────────────────────────────
+  // Клиент 01.08: «мне нужно вот это поле… увеличить прямо до краёв», и он хотел
+  // именно ТЯНУТЬ. Кадрирование этого дать не может: оно режет поля вокруг изделия,
+  // а их всего ~1.25x запаса, дальше срезает рукава. Здесь растягивается сама сцена.
+
+  appEl() {
+    return document.getElementById('app');
+  }
+
+  currentStageWidth() {
+    const cfg = this.app.config.stage;
+    if (cfg && Number.isFinite(Number(cfg.width))) return clampStageWidth(cfg.width);
+    const el = this.appEl();
+    // Ширина из CSS, пока владелец ничего не менял.
+    const css = el ? parseFloat(getComputedStyle(el).maxWidth) : NaN;
+    return Number.isFinite(css) ? css : DEFAULT_STAGE_WIDTH;
+  }
+
+  applyStageWidth(px) {
+    const el = this.appEl();
+    if (el) el.style.maxWidth = px + 'px';
+    if (this.widthLabel) this.widthLabel.textContent = px + ' px';
+    // Рамки зон живут в процентах, но пересборка нужна: сцена сменила размер.
+    this.app.render();
+    this.armAll();
+    this.positionWidthHandle();
+  }
+
+  /** Ручка на правом крае поля: вертикальная полоса, её видно и она подписана. */
+  mountWidthHandle() {
+    const h = document.createElement('div');
+    Object.assign(h.style, {
+      position: 'absolute', zIndex: '60', width: '26px', borderRadius: '13px',
+      background: 'rgba(47,111,224,0.95)', border: '2px solid #fff',
+      boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+      cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', font: '600 13px/1 system-ui, sans-serif', userSelect: 'none',
+      touchAction: 'none'
+    });
+    h.textContent = '⟷';
+    h.title = 'Тяните вбок — поле с футболкой станет шире или уже';
+
+    const label = document.createElement('div');
+    Object.assign(label.style, {
+      position: 'absolute', zIndex: '60', padding: '4px 8px', borderRadius: '7px',
+      background: 'rgba(20,41,76,0.92)', color: '#fff',
+      font: '600 12px/1 system-ui, sans-serif', pointerEvents: 'none', whiteSpace: 'nowrap'
+    });
+    this.widthLabel = label;
+    this.widthHandle = h;
+    document.body.append(h, label);
+    label.textContent = Math.round(this.currentStageWidth()) + ' px';
+
+    this.wireWidthDrag(h);
+    this.positionWidthHandle();
+    window.addEventListener('resize', () => this.positionWidthHandle());
+    window.addEventListener('scroll', () => this.positionWidthHandle(), { passive: true });
+  }
+
+  /** Держим ручку у правого края сцены. Координаты страничные, потому что элемент в body. */
+  positionWidthHandle() {
+    const stage = document.getElementById('stage');
+    if (!stage || !this.widthHandle) return;
+    const r = stage.getBoundingClientRect();
+    if (!r.width) return;
+    const top = r.top + window.scrollY;
+    const height = Math.max(80, Math.min(r.height, 160));
+    Object.assign(this.widthHandle.style, {
+      left: (r.right + window.scrollX - 13) + 'px',
+      top: (top + r.height / 2 - height / 2) + 'px',
+      height: height + 'px',
+    });
+    Object.assign(this.widthLabel.style, {
+      left: (r.right + window.scrollX - 30) + 'px',
+      top: (top + r.height / 2 + height / 2 + 8) + 'px',
+    });
+  }
+
+  wireWidthDrag(handle) {
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // ⚠️ Захват указателя — попытка, а не обязанность: setPointerCapture кидает
+      // NotFoundError, если указателя с таким id уже нет, и раньше это молча обрывало
+      // обработчик ДО навешивания move, то есть ручка просто не тянулась.
+      try { handle.setPointerCapture(e.pointerId); } catch { /* потянем и без захвата */ }
+      const startX = e.clientX;
+      const startWidth = this.currentStageWidth();
+      // Слушаем на window, как перетаскивание рамки зоны: курсор во время тяги
+      // уходит за узкую ручку, и события на самом элементе теряются.
+      const move = (ev) => {
+        const px = widthFromDrag(startWidth, ev.clientX - startX);
+        const stage = this.app.config.stage || (this.app.config.stage = {});
+        stage.width = px;
+        this.applyStageWidth(px);
+      };
+      const up = () => {
+        try { handle.releasePointerCapture(e.pointerId); } catch { /* не захватывали */ }
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        this.setStatus('Ширина поля изменена, не забудьте сохранить.');
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
   /** Сохраняем ВЗРОСЛУЮ зону: детская выводится из неё автоматически. */
   async save() {
     if (!this.nonce) {
@@ -381,9 +524,25 @@ class TshirtZoneEditor {
       zones[tpl.view] = alignBoxToCm(tpl.box, adultCm, stageAspect);
     }
     try {
+      // Детские зоны уходят в том же zones.json под ключом child (клиент 01.08).
+      const childCfg = this.app.config.childZones;
+      if (childCfg) {
+        const byAgeCfg = (this.app.config.frame && this.app.config.frame.byAge) || {};
+        const childCm = {
+          w: (byAgeCfg.child && byAgeCfg.child.wCm) || 30,
+          h: (byAgeCfg.child && byAgeCfg.child.hCm) || 40
+        };
+        const child = {};
+        for (const view of Object.keys(childCfg)) {
+          child[view] = alignBoxToCm(childCfg[view], childCm, stageAspect);
+        }
+        zones.child = child;
+      }
       const body = new URLSearchParams({
         action: 'jetron_ts_zones', nonce: this.nonce, zones: JSON.stringify(zones),
-        crops: JSON.stringify(this.app.config.crops || {})
+        crops: JSON.stringify(this.app.config.crops || {}),
+        // Ширина поля уходит тем же сохранением, что зоны и кадры (клиент 01.08).
+        stage: JSON.stringify(this.app.config.stage || {})
       });
       const res = await fetch(AJAX_URL, { method: 'POST', credentials: 'include', body });
       const json = await res.json();

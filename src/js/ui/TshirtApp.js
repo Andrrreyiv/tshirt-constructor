@@ -3,20 +3,26 @@
 // цвет и фасон выбираются под макетом, правая панель — параметры + липкий итог с CTA.
 // Активная сторона (клик по карточке) — та, куда добавляются принт и текст.
 
-import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260731a';
-import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260731a';
-import { CmScaler } from '../tshirt/CmScaler.js?v=20260731a';
-import { LayerManager } from '../tshirt/LayerManager.js?v=20260731a';
-import { StepPrice } from '../tshirt/StepPrice.js?v=20260731a';
-import { TextPrice } from '../tshirt/TextPrice.js?v=20260731a';
-import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260731a';
-import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260731a';
-import { QualityHint } from '../tshirt/QualityHint.js?v=20260731a';
-import { Recolor } from '../tshirt/Recolor.js?v=20260731a';
-import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260731a';
-import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260731a';
-import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260731a';
-import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260731a';
+import { PrintFrame } from '../tshirt/PrintFrame.js?v=20260920b';
+import { alignBoxToCm, deriveBox } from '../tshirt/ZoneBox.js?v=20260920b';
+import { CmScaler } from '../tshirt/CmScaler.js?v=20260920b';
+import { visibleTypes, visibleDensities } from '../tshirt/AdminOverrides.js?v=20260920b';
+import { orderSpec } from '../tshirt/OrderSpec.js?v=20260920b';
+import { LayerManager } from '../tshirt/LayerManager.js?v=20260920b';
+import { StepPrice } from '../tshirt/StepPrice.js?v=20260920b';
+import { TextPrice } from '../tshirt/TextPrice.js?v=20260920b';
+import { PrintEditor } from '../tshirt/PrintEditor.js?v=20260920b';
+import { buildOrder } from '../tshirt/OrderBuilder.js?v=20260920b';
+import { QualityHint } from '../tshirt/QualityHint.js?v=20260920b';
+import { Recolor } from '../tshirt/Recolor.js?v=20260920b';
+import { LibraryPanel } from '../tshirt/LibraryPanel.js?v=20260920b';
+import { colorTone } from '../tshirt/PrintTone.js?v=20260920b';
+import { sidesToExport } from '../tshirt/MockupExport.js?v=20260920b';
+import { printBoxOnMockup } from '../tshirt/BoxFit.js?v=20260920b';
+import { zoneInCrop, mockupTransform, FULL_CROP } from '../tshirt/Crop.js?v=20260920b';
+import { textFontFamily } from '../tshirt/PrintEditor.js?v=20260920b';
+import { forcedMethod } from '../tshirt/PrintMethod.js?v=20260920b';
+import { PanelAccordion } from './PanelAccordion.js?v=20260920b';
 
 export class TshirtApp {
   /** @param {{ config, viewsEl, panelEl, colorEl, manifest }} opts */
@@ -33,10 +39,17 @@ export class TshirtApp {
       age: 'adult',      // adult | child
       densityG: (config.densities?.[0]?.g) ?? null,
       printMethod: config.prices?.print?.method ?? 'dtf', // dtf | film
-      sizesOpen: false,
     };
 
+    // Раскрывающиеся поля (шрифты, таблица размеров, детализация) держит один аккордеон:
+    // клиент 26.08 требует, чтобы клик по любому другому полю сворачивал открытое.
+    this.panels = new PanelAccordion();
+    /** @type {Record<string, {root: Element, apply: (open: boolean) => void}>} */
+    this.panelRefs = {};
+
     this.state.textInput = '';
+    // id надписи, которая правится прямо во время набора (клиент 01.08, без кнопки «Добавить»)
+    this.state.liveTextId = null;
     this.state.textColor = '#111111';
 
     // Доменные модули (фаза 1 активна).
@@ -53,8 +66,48 @@ export class TshirtApp {
   }
 
   start() {
+    this._guardImages();
     this.buildZones();
+    this._wireAccordion();
     this.render();
+  }
+
+  /**
+   * Зарегистрировать раскрывающееся поле и сразу привести его к состоянию аккордеона.
+   * Панель пересобирается на каждом действии, поэтому раскрытое поле обязано пережить
+   * пересборку, а свёрнутое — не всплыть обратно.
+   */
+  _registerPanel(name, root, apply) {
+    this.panelRefs[name] = { root, apply };
+    apply(this.panels.isOpen(name));
+  }
+
+  /**
+   * Единственный сторож на всю страницу: клик мимо открытого поля его сворачивает.
+   * Клиент 26.08 (голос 11-13-26): «а потом перешёл к другому полю… в любое поле кликнул —
+   * то вот это поле должно сворачиваться… чтобы нам пространство не расширять».
+   *
+   * ⚠️ Фаза ПЕРЕХВАТА, а не всплытия: обработчик самой кнопки обязан сработать ПОСЛЕ нас,
+   * иначе клик по чужой кнопке открыл бы её поле, а мы бы тут же его закрыли.
+   * ⚠️ Подписка вешается ОДИН раз в start(), а не в renderPanel(): панель пересобирается
+   * на каждом действии, и подписки оттуда копились бы десятками.
+   */
+  _wireAccordion(doc = (typeof document === 'undefined' ? null : document)) {
+    if (!doc) return;
+    doc.addEventListener('click', (e) => {
+      const ref = this.panelRefs[this.panels.open];
+      // Кнопка поля лежит внутри его же корня, поэтому клик по ней считается «внутри»:
+      // сворачивать обязан её собственный toggle, иначе выйдет закрыл-и-сразу-открыл.
+      const inside = !!(ref && ref.root && ref.root.contains(e.target));
+      if (this.panels.closeIfOutside(inside)) this._syncPanels();
+    }, true);
+  }
+
+  /** Единственная точка правды: развернуть открытое поле, свернуть все прочие. */
+  _syncPanels() {
+    for (const name of Object.keys(this.panelRefs)) {
+      this.panelRefs[name].apply(this.panels.isOpen(name));
+    }
   }
 
   /**
@@ -71,9 +124,17 @@ export class TshirtApp {
       : adultCm;
     this.zones = {};
     for (const src of this.config.zoneTemplate) {
-      // Владелец правит коробку для взрослой зоны, детская выводится от центра.
+      // Владелец правит коробку для взрослой зоны; детская выводится от центра,
+      // ЕСЛИ он не задал её отдельно. Клиент 01.08: «в детской не могу увеличить
+      // квадрат» — раньше она жёстко считалась как 30/40 от взрослой и потолок был
+      // непреодолим. Своя сохранённая детская коробка теперь побеждает.
       const adultBox = alignBoxToCm(src.box, adultCm, stageAspect);
-      const box = ageCm === adultCm ? adultBox : deriveBox(adultBox, adultCm, ageCm);
+      const ownChild = this.state.age === 'child' && this.config.childZones
+        ? this.config.childZones[src.view]
+        : null;
+      const box = ageCm === adultCm
+        ? adultBox
+        : (ownChild ? alignBoxToCm(ownChild, ageCm, stageAspect) : deriveBox(adultBox, adultCm, ageCm));
       const zone = { ...src, box: alignBoxToCm(box, ageCm, stageAspect), cm: { ...ageCm } };
       this.zones[zone.view] = zone;
       // Рамка живёт над кадрированной картинкой, поэтому её координаты — от видимой части.
@@ -170,6 +231,9 @@ export class TshirtApp {
           frame, scaler, layers: this.layers,
           getSide: () => side.id,
           getMethod: () => this.state.printMethod,
+          // Порядок важен: onRemove правит state, и уже ПОСЛЕ него onChange
+          // пересобирает панель — иначе поле ввода отрисовалось бы со старым текстом.
+          onRemove: (d) => this.forgetLayer(d),
           onChange: () => { this.renderPanel(); this.updatePrice(); },
         });
         editor.mount(inner);
@@ -258,11 +322,10 @@ export class TshirtApp {
   // ── Панель параметров ────────────────────────────────────────────────────
   /** Фасоны из каталога: значение + подпись как в карточке товара. */
   typeOptions() {
-    const seen = new Map();
-    for (const f of this.config.forms) {
-      if (!seen.has(f.type)) seen.set(f.type, f.typeLabel ?? f.type);
-    }
-    return [...seen.entries()].map(([value, label]) => ({ value, label }));
+    // Подпись и видимость фасона идут из настроек админки (раздел formTypes), значение — из
+    // каталога изделий. Клиент 12.09: «Короткий рукав поменять на "Базовая"», «добавить третью
+    // кнопку "Длинный рукав"», «дать возможность отключать эти кнопки из видимости».
+    return visibleTypes(this.config);
   }
 
   /** Сменить фасон, сохранив выбранный цвет, если он есть у нового фасона. */
@@ -281,37 +344,49 @@ export class TshirtApp {
   renderPanel() {
     const c = this.config;
     this.panelEl.innerHTML = '';
+    // Узлы прежней сборки выброшены — ссылки на них тоже, иначе сторож аккордеона
+    // держал бы уже мёртвый корень и `contains` всегда врал бы «клик снаружи».
+    this.panelRefs = {};
 
     // Заголовка «Конструктор футболок» и подзаголовка в макете клиента 30.07 нет:
     // название есть на самой странице сайта, в панели оно только съедало высоту.
     // Изделие — секция без заголовка, как в макете.
+    // Клиент 01.08 (голос): «без разделов блоков, без отдельно добавить дизайн,
+    // без надписей, без подписей, без всего, вот один в один… там заголовки эти все
+    // убрать, объединить блок, где добавить дизайн у нас отдельным блоком идёт».
+    // Поэтому изделие и дизайн живут в ОДНОЙ карточке и без единой подписи.
     const product = section();
     // Таблица размеров живёт ВНУТРИ серого блока линейки (клиент 30.07: «серый блок увеличить
     // вниз чуть-чуть и туда вставить эти взрослые размеры, а то они очень много места занимают
     // и всё у нас ползает вниз»). Отдельным полем она распирала панель при каждом раскрытии.
-    product.append(this.segField('Размерная линейка',
+    product.append(this.segField(null,
       [{ value: 'adult', label: 'Взрослая' }, { value: 'child', label: 'Детская' }],
       this.state.age, v => { this.state.age = v; this.buildZones(); this.render(); },
       this.sizesField()));
-    product.append(this.segField('Тип футболки', this.typeOptions(),
+    product.append(this.segField(null, this.typeOptions(),
       this.state.type, v => this.pickType(v)));
-    product.append(this.segField('Плотность ткани',
-      c.densities.map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
+    // Скрытые в админке плотности покупателю не показываем, но из каталога не удаляем:
+    // цена по ним могла уже уйти в заказ.
+    product.append(this.segField(null,
+      visibleDensities(c).map(d => ({ value: d.g, label: d.g + ' г', sub: d.label.split('—')[1]?.trim() })),
       this.state.densityG, v => { this.state.densityG = Number(v); this.render(); }));
     // Превью сторон и выбор стороны: в макете клиента они идут сразу под плотностью.
     product.append(this.sidePreviewField());
-    this.panelEl.append(product);
 
     // Дизайн: принт, затем надпись, затем метод нанесения — порядок из макета клиента.
     // Подпись «до N принтов на сторону» убрана 30.07: в макете её нет, а потолок
     // и так виден по сообщению при попытке добавить третий принт.
-    const printSec = section('Добавить дизайн');
-    printSec.append(this.libraryField());
-    printSec.append(this.textField());
-    printSec.append(this.segField('Метод нанесения',
-      Object.entries(c.prices.print.methods).map(([id, m]) => ({ value: id, label: m.label })),
-      this.state.printMethod, v => { this.state.printMethod = v; this.render(); }));
-    this.panelEl.append(printSec);
+    product.append(this.libraryField());
+    product.append(this.textField());
+    // Метод нанесения НЕ выбирается: он выведен из того, что покупатель положил на футболку.
+    // Клиент 25.08: «не надо ему выбора такой ошибочный давать… она плёнкой дешевле,
+    // они будут тыкать плёнкой, а потом лишнее объяснять им, что плёнкой не получится».
+    // Гнездо постоянное, содержимое обновляет refreshMethodField(): набор надписи идёт
+    // в тихом режиме и панель целиком не пересобирает.
+    this.methodSlot = el('div', 'method-slot');
+    product.append(this.methodSlot);
+    this.refreshMethodField();
+    this.panelEl.append(product);
 
     // Итог заказа + CTA
     this.panelEl.append(this.orderField());
@@ -377,15 +452,21 @@ export class TshirtApp {
     }
     field.append(row);
 
-    // Переключатель под превью — дублирует выбор, как в макете.
-    field.append(this.segField('Сторона нанесения',
+    // Переключатель под превью — дублирует выбор, как в макете. Без подписи (клиент 01.08).
+    field.append(this.segField(null,
       this.config.sides.map(s => ({ value: s.id, label: s.label })),
       this.state.side, v => { this.state.side = v; this.render(); }));
     return field;
   }
 
-  /** Собрать сериализуемый итог заказа из текущего состояния (единый источник цены). */
+  /**
+   * Собрать сериализуемый итог заказа из текущего состояния (единый источник цены).
+   * Метод нанесения догоняется ЗДЕСЬ, а не только в панели: набор надписи идёт в тихом
+   * режиме (панель не пересобирается, чтобы не слетал фокус), и цена иначе считалась бы
+   * по прежнему методу.
+   */
   currentOrder() {
+    this.syncPrintMethod();
     return buildOrder({
       config: this.config,
       state: this.state,
@@ -399,7 +480,7 @@ export class TshirtApp {
   /** Липкая карточка «Итог заказа»: изделие, нанесения по сторонам, разбивка, CTA. */
   orderField() {
     const order = this.currentOrder();
-    const sec = section('Итог заказа');
+    const sec = section();
     sec.classList.add('price-box');
 
     const p = order.product;
@@ -410,8 +491,18 @@ export class TshirtApp {
     // Детализация: клиент на макете держит её свёрнутой, чтобы панель не разрасталась.
     const details = document.createElement('details');
     details.className = 'order__details';
-    details.open = this.state.detailsOpen ?? false;
-    details.addEventListener('toggle', () => { this.state.detailsOpen = details.open; });
+    // Клиент 26.08: «если он детализацию открыл, а потом пошёл опять нажимать другие
+    // кнопки, то детализация тоже автоматически схлопывается в изначальную строчку».
+    // `<details>` раскрывает сам браузер, поэтому состояние догоняем из события toggle.
+    // Рекурсии нет: apply меняет `open`, только если он и правда другой, а обработчик
+    // на уже согласованном состоянии ничего не делает.
+    this._registerPanel('details', details, (open) => {
+      if (details.open !== open) details.open = open;
+    });
+    details.addEventListener('toggle', () => {
+      if (details.open) { this.panels.openOnly('details'); this._syncPanels(); }
+      else if (this.panels.isOpen('details')) this.panels.toggle('details');
+    });
     const summary = document.createElement('summary');
     summary.className = 'order__details-sum';
     summary.textContent = 'Детализация';
@@ -455,6 +546,7 @@ export class TshirtApp {
 
     const cta = el('button', 'cta', 'Оформить заказ');
     cta.type = 'button';
+    cta.onclick = () => this.showOrder();
     sec.append(cta);
     sec.append(el('div', 'hint price-note', 'Цена предварительная. Менеджер подтвердит перед оплатой.'));
 
@@ -462,10 +554,16 @@ export class TshirtApp {
   }
 
   /**
-   * Строка надписи по макету клиента 30.07: «Добавить текст» слева, бейдж «Шрифт и цвет»
-   * справа. Пока поле пустое, строка выглядит ровно как в макете (подпись — это placeholder).
-   * Кнопка «Добавить» появляется только когда есть что добавлять.
-   * Бейдж раскрывает выбор шрифта (ТЗ п.69) и цвета (U8 — полный RGB-пикер).
+   * Строка надписи. Клиент 20.09 голосом о ДВУХ вещах сразу:
+   *   1. «где поле добавить текст, как-то его выделить, а то его по факту нет» — поле было
+   *      без рамки и фона на кремовой плашке и читалось как подпись, а не как поле ввода;
+   *   2. «можете эти кнопки в конструктор футболок добавить» — те же две кнопки «Шрифт»
+   *      и «Цвет», что сделаны 20.09 в конструкторе формы вместо мелкой ссылки.
+   * Поэтому вместо бейджа «Шрифт и цвет» под полем стоят две кнопки, и на каждой видно
+   * текущее значение (имя шрифта, кружок цвета) ещё до нажатия.
+   * ⛔ Механика прежняя: список выезжает ВНИЗ прямо в поле и сдвигает блоки под собой,
+   * всплывающих окон поверх футболки нет. Открыта всегда ровно одна панель.
+   * Выбор цвета остаётся полным RGB-пикером (U8), а не набором свотчей.
    */
   textField() {
     const field = el('div', 'field');
@@ -473,50 +571,99 @@ export class TshirtApp {
     const row = el('div', 'design-row design-row--text');
     const input = el('input', 'design-row__input');
     input.type = 'text';
+    // Клиент 20.09 (голосовое 14:42): «эту фразу добавить текст нужно вставить в поле, где
+    // написано например Маша… убрать надпись добавить текст, она не нужна, просто мы внутри
+    // в этом поле напишем добавить текст, и люди и так поймут».
     input.placeholder = 'Добавить текст';
     input.value = this.state.textInput;
     input.setAttribute('aria-label', 'Текст надписи');
-    input.addEventListener('input', () => {
-      this.state.textInput = input.value;
-      add.hidden = input.value.trim() === '';
-    });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.addText(); });
+    // Клиент 01.08: «убрать кнопочку добавить, она очень сильно сужает поле… как только
+    // он начал что-то печатать, автоматически всё переносится на футболку, и он сразу
+    // видит, что печатает». Кнопки больше нет, надпись живёт прямо во время набора.
+    input.addEventListener('input', () => this.liveText(input.value));
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
-    const add = el('button', 'design-row__add', 'Добавить');
-    add.type = 'button';
-    add.hidden = (this.state.textInput || '').trim() === '';
-    add.addEventListener('click', () => this.addText());
+    row.append(input);
 
-    const badge = el('button', 'text-badge');
-    badge.type = 'button';
-    badge.setAttribute('aria-expanded', String(this.state.textOptsOpen === true));
-    badge.append(el('span', 'text-badge__dot'), document.createTextNode('Шрифт и цвет'));
-
-    row.append(input, add, badge);
+    // Кнопки живут ВНУТРИ бежевой плашки, на всю её ширину, и сделаны тем же сегментом,
+    // что «Грудь / Спина» (клиент 20.09: «они не выходят из этого блока… они отдельно
+    // и на всю ширину самого этого блока… вместо грудь и спина… кнопку шрифт в белом фоне
+    // залить, а цвет сделать залипшим»). Выбранная кнопка залита белым, как там.
+    const seg = el('div', 'seg text-seg');
+    const fontBtn = el('button', 'seg__btn');
+    fontBtn.type = 'button';
+    fontBtn.append(document.createTextNode('Шрифт'), el('small', '', this.currentFontName()));
+    const colorBtn = el('button', 'seg__btn');
+    colorBtn.type = 'button';
+    const dot = el('small', 'text-seg__dot');
+    dot.style.background = this.state.textColor;
+    colorBtn.append(document.createTextNode('Цвет'), dot);
+    seg.append(fontBtn, colorBtn);
+    row.append(seg);
     field.append(row);
 
     const opts = el('div', 'text-opts');
-    opts.hidden = this.state.textOptsOpen !== true;
-    opts.append(this.fontList());
+    const fontBox = this.fontList();
+    opts.append(fontBox);
     const colorRow = el('label', 'text-opts__color');
     colorRow.append(el('span', '', 'Цвет надписи'));
     const color = el('input', 'text-opts__picker');
     color.type = 'color'; // U8: полный RGB-пикер, в отличие от цветов изделия
     color.value = this.state.textColor;
+    // input у пикера летит непрерывно, пока его тянут, поэтому здесь НЕЛЬЗЯ вызывать
+    // render(): панель пересоберётся и пикер закроется под рукой. Дескрипторы правим
+    // сразу (иначе следующая перерисовка вернёт старый цвет), узлы красим по месту.
+    // ⚠️ Названия шрифтов ЗДЕСЬ НЕ КРАСИМ. Клиент 26.08 (голос 11-05-58): «сделал футболку
+    // чёрный и поменял шрифт на белый цвет… где поля выбор шрифтов, они стали белыми,
+    // их вообще не видно… Они должны быть всегда чёрными. Независимо от того, что
+    // выбирает человек на футболку». Цвет образцов задан в CSS и от state не зависит.
     color.addEventListener('input', () => {
       this.state.textColor = color.value;
-      for (const s of opts.querySelectorAll('.font-opt__sample')) s.style.color = color.value;
+      dot.style.background = color.value; // кружок на кнопке — по месту, render() здесь нельзя
+      this.restyleTextLayers({ color: color.value });
     });
+    // Пикер закрыли — теперь можно пересобрать панель и догнать превью сторон и цену.
+    color.addEventListener('change', () => this.render());
     colorRow.append(color);
     opts.append(colorRow);
     field.append(opts);
 
-    badge.addEventListener('click', () => {
-      this.state.textOptsOpen = this.state.textOptsOpen !== true;
-      opts.hidden = !this.state.textOptsOpen;
-      badge.setAttribute('aria-expanded', String(this.state.textOptsOpen));
+    // Корень поля — весь `field`: и кнопки, и список шрифтов, и пикер цвета. Клик по
+    // любому из них считается «внутри», а значит выбор шрифта список не захлопывает.
+    // Какая из двух панелей раскрыта, помнит `_textPanel`: render() пересобирает поле
+    // целиком, и без этого список схлопывался бы после каждого выбора шрифта.
+    this._registerPanel('text', field, (open) => {
+      const какая = open ? (this._textPanel || 'font') : '';
+      if (!open) this._textPanel = '';
+      opts.hidden = !open;
+      fontBox.hidden = какая !== 'font';
+      colorRow.hidden = какая !== 'color';
+      fontBtn.className = 'seg__btn' + (какая === 'font' ? ' seg__btn--active' : '');
+      colorBtn.className = 'seg__btn' + (какая === 'color' ? ' seg__btn--active' : '');
+      fontBtn.setAttribute('aria-pressed', String(какая === 'font'));
+      colorBtn.setAttribute('aria-pressed', String(какая === 'color'));
     });
+    // Повторное нажатие той же кнопки закрывает, соседняя — подменяет содержимое.
+    const переключить = (какая) => {
+      if (this._textPanel === какая && this.panels.isOpen('text')) {
+        this.panels.toggle('text');
+        this._textPanel = '';
+      } else {
+        this._textPanel = какая;
+        this.panels.openOnly('text');
+      }
+      this._syncPanels();
+    };
+    fontBtn.addEventListener('click', () => переключить('font'));
+    colorBtn.addEventListener('click', () => переключить('color'));
     return field;
+  }
+
+  /** Имя текущего шрифта — оно стоит прямо на кнопке «Шрифт». */
+  currentFontName() {
+    const id = this.currentFontId();
+    const f = (this.config.fonts ?? []).find((x) => x.id === id);
+    return f ? f.name : '';
   }
 
   /** Список шрифтов: образец нарисован самим шрифтом, чтобы выбирали глазами. */
@@ -529,12 +676,74 @@ export class TshirtApp {
       btn.setAttribute('aria-pressed', String(isActive));
       const sample = el('span', 'font-opt__sample', f.name);
       sample.style.fontFamily = textFontFamily(f.id);
-      sample.style.color = this.state.textColor;
+      // Цвет образца НЕ берётся из state.textColor: на белой надписи список пропадал
+      // на белом фоне панели (клиент 26.08). Название шрифта всегда тёмное, из CSS.
       btn.append(sample);
-      btn.addEventListener('click', () => { this.state.fontId = f.id; this.render(); });
+      btn.addEventListener('click', () => {
+        this.state.fontId = f.id;
+        this.restyleTextLayers({ fontId: f.id });
+        this.render();
+      });
       box.append(btn);
     }
     return box;
+  }
+
+  /**
+   * Переодеть УЖЕ созданные надписи: сперва дескрипторы (иначе следующая перерисовка
+   * вернёт старое), затем живые узлы обеих сторон по месту.
+   * ⚠️ Клиент 25.08: «я меняю шрифты, а надпись не меняется… только изначально, когда
+   * выбрал шрифт, он тем шрифтом и написал». Возвращает число тронутых надписей.
+   */
+  restyleTextLayers(patch) {
+    const n = this.layers.restyleKind('text', patch);
+    for (const ed of Object.values(this.editors)) {
+      if (ed && typeof ed.refreshTextStyle === 'function') ed.refreshTextStyle();
+    }
+    return n;
+  }
+
+  /**
+   * Догнать метод нанесения содержимым футболки. Возвращает выведенный метод либо null,
+   * если на футболке пусто (тогда состояние не трогаем: цена печати всё равно нулевая).
+   * ⚠️ Клиент 25.08: «не надо ему выбора такой ошибочный давать, она плёнкой дешевле,
+   * они будут тыкать плёнкой, а потом лишнее объяснять им, что это плёнкой не получится».
+   */
+  syncPrintMethod() {
+    const m = forcedMethod({
+      hasPrint: this.layers.hasKind('print'),
+      hasText: this.layers.hasKind('text'),
+    });
+    if (m) this.state.printMethod = m;
+    return m;
+  }
+
+  /**
+   * Поле метода нанесения. Выбора здесь НЕТ: показывается ровно один метод, выведенный
+   * из содержимого футболки. Клиент 25.08: «просто залипшую кнопку плёнкой, и всё,
+   * ничем поменять не может… если он выбрал принт, там кнопку плёнка убираем».
+   */
+  methodField() {
+    const id = this.syncPrintMethod();
+    if (!id) return null; // на пустой футболке печатать нечего
+    const methods = this.config.prices?.print?.methods ?? {};
+    const label = methods[id]?.label ?? id;
+    // onPick пустой: кнопка одна и уже активна, нажимать нечего.
+    return this.segField(null, [{ value: id, label }], id, () => {});
+  }
+
+  /**
+   * Перерисовать ТОЛЬКО поле метода, не трогая остальную панель.
+   * ⚠️ Набор надписи идёт в тихом режиме: renderPanel() пересоздал бы поле ввода и фокус
+   * слетел бы на каждом символе. Без этого обновления покупатель печатал «Маша», цена
+   * становилась плёночной, а строки «Плёнкой» на экране не было до первого клика
+   * по любому другому полю (поймано глазами в браузере 25.08, тесты этого не видели).
+   */
+  refreshMethodField() {
+    const slot = this.methodSlot;
+    if (!slot) return;
+    const field = this.methodField();
+    slot.replaceChildren(...(field ? [field] : []));
   }
 
   /** Выбранный шрифт надписи; по умолчанию первый из конфига. */
@@ -542,14 +751,55 @@ export class TshirtApp {
     return this.state.fontId ?? this.config.fonts?.[0]?.id ?? null;
   }
 
-  addText() {
-    const text = (this.state.textInput || '').trim();
-    if (!text) return;
+  /**
+   * Надпись во время набора: первый символ создаёт слой, дальше правится тот же,
+   * пустое поле убирает надпись с футболки. Клиент 01.08 просил убрать кнопку
+   * «Добавить» и показывать текст сразу.
+   *
+   * ⚠️ Панель здесь НЕ перерисовывается целиком: renderPanel() пересоздал бы поле
+   * ввода, и фокус слетал бы на каждом символе. Обновляем только сам слой и цену.
+   */
+  liveText(value) {
+    this.state.textInput = value;
     const editor = this.activeEditor();
     if (!editor) return;
-    editor.addText({ text, color: this.state.textColor, fontId: this.currentFontId() });
+    const text = value.trim();
+
+    if (!text) {
+      if (this.state.liveTextId) {
+        editor.removeLayer(this.state.liveTextId, { silent: true });
+        this.state.liveTextId = null;
+      }
+      this.updatePrice();
+      return;
+    }
+    if (this.state.liveTextId && editor.updateTextLayer(this.state.liveTextId, text)) {
+      this.updatePrice();
+      return;
+    }
+    // Слоя ещё нет (или он остался на другой стороне) — заводим новый.
+    const id = editor.addText({
+      text, color: this.state.textColor, fontId: this.currentFontId(), silent: true,
+    });
+    this.state.liveTextId = typeof id === 'string' ? id : null;
+    this.updatePrice();
+  }
+
+  /**
+   * Слой убрали крестиком прямо с футболки. Клиент 26.08 (голос): «на футболке удаляю
+   * смирнов, а в поле текст слово смирнов остаётся… пусть это слово тоже удалится»,
+   * причина у него та же, что и у нас: «обратно уже вернуть не можем… оно уже ни к чему».
+   * Принтов это не касается — у них своего поля ввода нет.
+   * @returns {boolean} поле ввода очищено
+   */
+  forgetLayer(d) {
+    if ((d?.kind ?? 'print') !== 'text') return false;
+    // Поле описывает ровно одну надпись — ту, что правится на лету. Крестик на чужой
+    // (она осталась на другой стороне) поле не трогает: там текст ещё жив.
+    if (this.state.liveTextId && this.state.liveTextId !== d.id) return false;
     this.state.textInput = '';
-    this.render();
+    this.state.liveTextId = null;
+    return true;
   }
 
   /** Принт, уже положенный на активную сторону — он и показывается миниатюрой в строке. */
@@ -558,9 +808,36 @@ export class TshirtApp {
     return prints.length ? prints[prints.length - 1].src : null;
   }
 
+  /**
+   * Замедлитель против сохранения принта: правая кнопка и перетаскивание на картинках
+   * конструктора. Клиент 01.08 просил «чтобы никаких возможностей скачать принт не было».
+   * ⚠️ Честно: это НЕ защита. Адрес файла виден в инструментах разработчика, и обойти
+   * можно за десять секунд. Настоящая защита уже стоит и работает иначе: браузеру отдаётся
+   * превью 467×600, тогда как оригинал 3111×4000 лежит только на сервере, и перепечатать
+   * с превью нельзя. Вешаем на document один раз, чтобы не плодить слушателей на перерисовках.
+   */
+  _guardImages() {
+    if (this._imgGuardOn) return;
+    this._imgGuardOn = true;
+    const SEL = '.stage__img, .pf-print__img, .sideprev__img, .sideprev__print, .libm__thumb, .design-row__thumb';
+    document.addEventListener('contextmenu', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest(SEL)) e.preventDefault();
+    });
+    document.addEventListener('dragstart', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest(SEL)) e.preventDefault();
+    });
+  }
+
   libraryField() {
     const field = el('div', 'field');
     const libEl = el('div', 'lib');
+    // Библиотека показывает принты под цвет выбранного изделия (клиент 01.08). Тон сообщаем
+    // здесь, а не в обработчике свотча: сюда попадаем при КАЖДОЙ перерисовке, поэтому смена
+    // цвета любым путём (свотч, смена фасона со сбросом цвета) учитывается одинаково.
+    const color = (this.config.colors || []).find(x => x.id === this.state.colorId);
+    this.library.setTone(colorTone(color));
     // Клиент 28.07: библиотека вынесена в отдельное окно, в панели только строка вызова.
     // Подсказки под строкой в макете 30.07 нет — сторона видна по выделенному превью
     // и переключателю «Сторона нанесения» прямо над блоком.
@@ -599,9 +876,14 @@ export class TshirtApp {
    * Поле-сегмент. Необязательный extra кладётся ВНУТРЬ серого контейнера под кнопками:
    * так таблица размеров не распирает панель, а разворачивается внутри блока (клиент 30.07).
    */
+  /**
+   * Ряд кнопок-переключателей. Подпись НЕОБЯЗАТЕЛЬНА: клиент 01.08 попросил панель
+   * «без разделов блоков, без надписей, без подписей, без всего, вот один в один»
+   * по своему макету, поэтому подписи полей больше не выводятся.
+   */
   segField(label, options, active, onPick, extra = null) {
     const field = el('div', 'field');
-    field.append(el('div', 'field__label', label));
+    if (label) field.append(el('div', 'field__label', label));
     const seg = el('div', 'seg' + (extra ? ' seg--stack' : ''));
     const row = extra ? el('div', 'seg__row') : seg;
     for (const opt of options) {
@@ -627,11 +909,9 @@ export class TshirtApp {
 
     const toggle = el('button', 'sizes-toggle');
     toggle.type = 'button';
-    toggle.setAttribute('aria-expanded', String(this.state.sizesOpen));
     toggle.append(el('span', '', 'Таблица размеров'), el('span', 'chev', '▾'));
 
     const body = el('div', 'sizes-body');
-    body.hidden = !this.state.sizesOpen;
 
     const t = el('table', 'sizes-table');
     const thead = el('tr');
@@ -644,14 +924,121 @@ export class TshirtApp {
     }
     body.append(t);
 
+    // Клиент 26.08: «нажал посмотреть, а дальше пошёл кликать другие кнопочки — таблица
+    // размеров тоже должна схлопываться, чтобы нам пространство не расширять».
+    this._registerPanel('sizes', field, (open) => {
+      body.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+    });
     toggle.addEventListener('click', () => {
-      this.state.sizesOpen = !this.state.sizesOpen;
-      body.hidden = !this.state.sizesOpen;
-      toggle.setAttribute('aria-expanded', String(this.state.sizesOpen));
+      this.panels.toggle('sizes');
+      this._syncPanels();
     });
 
     field.append(toggle, body);
     return field;
+  }
+
+  // ── Оформление заказа ────────────────────────────────────────────────────
+  // Сделано по образцу конструктора ФОРМЫ (app.browser.js: showOrder + jetron-orders.php).
+  // Главное правило оттуда: сумма из браузера НИКОГДА не становится ценой — она едет рядом
+  // только для сверки, а цену пересчитывает сервер по спецификации.
+
+  /** Настройки товара WooCommerce. Нет файла (стенд без WP) — работаем без корзины. */
+  async _wooConfig() {
+    if (this._woo !== undefined) return this._woo;
+    try {
+      const r = await fetch('woo.json', { cache: 'no-store' });
+      // 404 запоминаем: на стенде без WordPress файла нет и не будет.
+      this._woo = r.ok ? await r.json() : null;
+    } catch {
+      return null; // сорванный запрос не кешируем — вдруг сеть моргнула
+    }
+    return this._woo;
+  }
+
+  showOrder() {
+    const order = this.currentOrder();
+    if (!this.layers.list('front').length && !this.layers.list('back').length) {
+      // Пустая футболка без нанесений — это обычный товар из каталога, не конструктор.
+      this._orderNote('Добавьте принт или надпись — иначе заказывать нечего.');
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'order-overlay';
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    const spec = orderSpec(order, { quantity: 1, withText: true });
+    card.innerHTML = `
+      <h3>Проверьте заказ</h3>
+      <pre class="order-spec">${escapeHtml(spec.specText)}</pre>
+      <label class="order-qty">Количество
+        <input type="number" min="1" max="1000" step="1" value="1" id="ts-qty">
+      </label>
+      <p class="order-total">Предварительно: <b id="ts-total">${order.price.total} ₽</b> за штуку</p>
+      <p class="hint">Точную сумму подтвердит менеджер: цену пересчитывает сервер.</p>
+      <div class="order-actions">
+        <button type="button" class="cta" id="ts-confirm">В корзину</button>
+        <button type="button" class="ghost" id="ts-cancel">Отмена</button>
+      </div>
+      <p class="order-error" id="ts-err" hidden></p>`;
+    overlay.append(card);
+    document.body.append(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    card.querySelector('#ts-cancel').onclick = close;
+    card.querySelector('#ts-confirm').onclick = () => this._submitOrder(card, close);
+  }
+
+  async _submitOrder(card, close) {
+    const btn = card.querySelector('#ts-confirm');
+    const err = card.querySelector('#ts-err');
+    btn.disabled = true;
+    try {
+      const woo = await this._wooConfig();
+      const order = this.currentOrder();
+      const qty = Number(card.querySelector('#ts-qty').value);
+      const spec = orderSpec(order, { quantity: qty, withText: true });
+      if (!woo || !woo.productId) {
+        // Стенд без WordPress: заказ собран, но корзины нет — честно об этом говорим.
+        err.hidden = false;
+        err.textContent = 'Корзина недоступна на этом стенде. Заказ собран, свяжитесь с менеджером.';
+        btn.disabled = false;
+        return;
+      }
+      const png = await this.mockupDataURL();
+      const base = String(woo.siteUrl || '').replace(/\/$/, '');
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.target = '_top'; // конструктор живёт в iframe — уводим ВСЮ страницу в корзину
+      form.action = `${base}/?add-to-cart=${encodeURIComponent(woo.productId)}`;
+      const add = (n, v) => {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = n; i.value = v;
+        form.append(i);
+      };
+      add('quantity', String(spec.quantity));
+      add('tshirt_spec', spec.specText);
+      // ⚠️ Ценой это не станет: сервер пересчитывает сам, число едет для сверки.
+      add('tshirt_total', String(order.price.total));
+      add('tshirt_order', JSON.stringify({ ...spec, specText: undefined }));
+      if (png) add('tshirt_png', png);
+      document.body.append(form);
+      form.submit();
+      close();
+    } catch (e) {
+      err.hidden = false;
+      err.textContent = 'Не получилось отправить заказ. Попробуйте ещё раз.';
+      btn.disabled = false;
+    }
+  }
+
+  _orderNote(текст) {
+    const note = document.createElement('div');
+    note.className = 'order-note';
+    note.textContent = текст;
+    document.body.append(note);
+    setTimeout(() => note.remove(), 3200);
   }
 
   // ── Скачать макет (клиент 30.07) ─────────────────────────────────────────
@@ -659,12 +1046,43 @@ export class TshirtApp {
   // собираем вручную: мокап в натуральную величину, поверх принты и надписи по тем же
   // долям, что и на экране (printBoxOnMockup — та же математика, что в превью сторон).
   async downloadMockup() {
+    // Клиент 01.08: «сделал принт только на груди, а скачалась картинка и с грудью, и со
+    // спиной… зачем ему спина». Берём только те стороны, на которых что-то есть. Если пусто
+    // везде (покупатель ничего не добавил), отдаём активную сторону — иначе кнопка молча
+    // ничего не делает и выглядит сломанной.
+    const wanted = sidesToExport(
+      this.config.sides,
+      (id) => this.layers.list(id).length > 0,
+      this.state.side
+    );
+
+    const собрано = await this._composeMockup(wanted);
+    if (!собрано) return;
+    const { out, sides } = собрано;
+    const form = this.currentForm();
+    // В имя файла добавляем сторону, когда она одна: у печатника не должно быть вопросов,
+    // грудь это или спина, если покупатель прислал два файла из разных заходов.
+    const sidePart = sides.length === 1 ? sides[0].id : '';
+    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? '', sidePart]
+      .filter(Boolean).join('-');
+    const a = document.createElement('a');
+    a.download = name + '.png';
+    a.href = out.toDataURL('image/png');
+    a.click();
+  }
+
+  /**
+   * Общий холст макета: стороны с нанесениями рядом, с подписями, на белом фоне.
+   * Вынесено из downloadMockup, чтобы ТОТ ЖЕ макет уходил в заказ — у конструктора формы
+   * менеджер тоже видит картинку (поле jetron_png), иначе по тексту непонятно, что печатать.
+   */
+  async _composeMockup(wanted) {
     const sides = [];
-    for (const side of this.config.sides) {
+    for (const side of wanted) {
       const c = await this._composeSide(side.id);
-      if (c) sides.push({ label: side.label, canvas: c });
+      if (c) sides.push({ label: side.label, id: side.id, canvas: c });
     }
-    if (!sides.length) return;
+    if (!sides.length) return null;
 
     const pad = 24, gap = 24, labelH = 34;
     const maxH = Math.max(...sides.map(s => s.canvas.height));
@@ -684,13 +1102,21 @@ export class TshirtApp {
       ctx.drawImage(s.canvas, x, pad + labelH);
       x += s.canvas.width + gap;
     }
+    return { out, sides };
+  }
 
-    const form = this.currentForm();
-    const name = ['jetron', form?.type ?? 'futbolka', form?.colorId ?? ''].filter(Boolean).join('-');
-    const a = document.createElement('a');
-    a.download = name + '.png';
-    a.href = out.toDataURL('image/png');
-    a.click();
+  /**
+   * Макет для заказа. JPEG, а не PNG: у формы так же (mockupDataURL 'image/jpeg', 0.85) —
+   * PNG композита с фотомокапом весит единицы мегабайт и упирается в лимит плагина.
+   */
+  async mockupDataURL(type = 'image/jpeg', quality = 0.85) {
+    const wanted = sidesToExport(
+      this.config.sides,
+      (id) => this.layers.list(id).length > 0,
+      this.state.side
+    );
+    const собрано = await this._composeMockup(wanted);
+    return собрано ? собрано.out.toDataURL(type, quality) : null;
   }
 
   /** Один холст стороны: мокап в натуральную величину плюс все нанесения. */
@@ -746,6 +1172,8 @@ export class TshirtApp {
 
   // ── Цена: единый источник — buildOrder (база U3 + принты U1 + текст U2) ──
   updatePrice() {
+    // Метод нанесения меняется ровно тогда же, когда цена: содержимое футболки задаёт оба.
+    this.refreshMethodField();
     const out = document.getElementById('totalPrice');
     if (!out) return;
     const total = this.currentOrder().price.total;
@@ -798,4 +1226,11 @@ function loadPic(src) {
     im.onerror = reject;
     im.src = src;
   });
+}
+
+// Спецификация уходит в <pre>, а в ней текст покупателя (надписи). Экранируем.
+function escapeHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
