@@ -1,14 +1,14 @@
 // main.browser.js — точка входа (как jetron): fetch конфига → валидация → App.start().
 // ЗАГЛУШКА фазы 0: поток запуска задан, UI-механики подключаются по фазам.
 
-import { validateConfig } from './core/ConfigLoader.js?v=20260920b';
-import { TshirtApp } from './ui/TshirtApp.js?v=20260920b';
-import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260920b';
-import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZonesOverride } from './tshirt/AdminOverrides.js?v=20260920b';
-import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260920b';
+import { validateConfig } from './core/ConfigLoader.js?v=20260920c';
+import { TshirtApp } from './ui/TshirtApp.js?v=20260920c';
+import { applyTshirtAdmin, applyPrintsOverride } from './tshirt/AdminOverrides.js?v=20260920c';
+import { applyZonesOverride, applyCropsOverride, applyStageOverride, applyChildZonesOverride } from './tshirt/AdminOverrides.js?v=20260920c';
+import { initTshirtZoneEditor } from './tshirt/zone-editor.browser.js?v=20260920c';
 
 // Версия и у данных: без неё браузер отдавал старый конфиг из кеша, и правки не доезжали.
-const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260920b';
+const CONFIG_URL = 'src/config/tshirt-mock-config.json?v=20260920c';
 
 async function boot() {
   const res = await fetch(CONFIG_URL);
