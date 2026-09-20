@@ -571,7 +571,12 @@ export class TshirtApp {
     const row = el('div', 'design-row design-row--text');
     const input = el('input', 'design-row__input');
     input.type = 'text';
-    input.placeholder = 'Добавить текст';
+    // Клиент 20.09: «а где поле добавить текст, как-то его выделить, а то его по факту нет».
+    // Дословно так и было: у соседнего ряда стоит живая кнопка «Добавить принт», а здесь
+    // весь блок держался на СЕРОЙ ПОДСКАЗКЕ внутри поля — textContent ряда был пустой.
+    // Теперь «Добавить текст» — настоящая подпись над полем, как у принта, а подсказка
+    // внутри показывает, чего от человека ждут.
+    input.placeholder = 'Например: МАША';
     input.value = this.state.textInput;
     input.setAttribute('aria-label', 'Текст надписи');
     // Клиент 01.08: «убрать кнопочку добавить, она очень сильно сужает поле… как только
@@ -580,7 +585,8 @@ export class TshirtApp {
     input.addEventListener('input', () => this.liveText(input.value));
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
-    row.append(input);
+    const caption = el('span', 'design-row__caption', 'Добавить текст');
+    row.append(caption, input);
     field.append(row);
 
     // Две кнопки под полем: по виду как само поле, значение видно сразу.
