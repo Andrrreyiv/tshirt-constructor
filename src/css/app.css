@@ -598,7 +598,7 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   .design-row__input { min-height: 46px; }
   .text-seg .seg__btn { min-height: 46px; }
   .font-opt { min-height: 48px; }
-  .text-opts__picker { width: 52px; height: 40px; }
+  .swatch--text { width: 40px; height: 40px; }
   /* Крестик и ручка принта живут на самом макете: раздувать их визуально нельзя —
      закроют принт. Поэтому растим невидимую зону нажатия до 44px, а значок
      оставляем компактным. */
@@ -694,15 +694,11 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
    Независимо от того, что выбирает человек на футболку». Список лежит на белой панели,
    поэтому белая надпись делала его невидимым. */
 .font-opt__sample { font-size: 20px; line-height: 1.2; color: var(--ink); }
-.text-opts__color {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-top: 10px; font-size: 13.5px; color: var(--ink-2);
-}
-.text-opts__picker {
-  width: 44px; height: 34px; padding: 2px; cursor: pointer;
-  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
-  background: var(--surface-2);
-}
+/* Палитра цвета надписи: те же семь свотчей, что в конструкторе формы (клиент 20.09:
+   «сможете добавить эти же цвета и убрать надпись Цвет надписи»). Подписи над рядом нет.
+   Кружки того же вида, что палитра цвета изделия выше, — чтобы экран читался как один. */
+.text-opts__color { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.swatch--text { width: 34px; height: 34px; }
 
 .libm {
   position: fixed; inset: 0; z-index: 300;

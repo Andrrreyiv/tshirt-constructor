@@ -86,24 +86,27 @@ test('клик по кнопке шрифта меняет шрифт УЖЕ н�
   }
 });
 
-// У цвета ровно тот же дефект: он тоже писался в дескриптор только при создании слоя.
-// Клиент про цвет пока не жаловался, но это одна и та же дырка, лечим сразу.
-test('пикер цвета перекрашивает УЖЕ набранную надпись', () => {
+// У цвета ровно тот же дефект, что был у шрифта: он писался в дескриптор только при
+// создании слоя. ⚠️ С 20.09 цвет выбирается ПАЛИТРОЙ, а не RGB-пикером — клиент попросил
+// «эти же цвета», как в конструкторе формы. Пикера в проекте больше нет.
+test('свотч палитры перекрашивает УЖЕ набранную надпись', () => {
   const prev = globalThis.document;
   globalThis.document = stubDocument();
   try {
     const { app, front, refreshed } = appWithText();
-    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
+    app.config = {
+      fonts: [{ id: 'oswald', name: 'Oswald' }],
+      textColors: [{ id: 'black', name: 'Чёрный', hex: '#111111' },
+                   { id: 'red', name: 'Красный', hex: '#e2001a' }],
+    };
     app.render = () => {};
 
-    const field = app.textField();
-    const picker = findByClass(field, 'text-opts__picker');
-    assert.ok(picker, 'пикер цвета не найден в панели');
-    picker.value = '#e11d48';
-    for (const fn of picker.on.input ?? []) fn({});
+    const свотчи = collectByClass(app.textField(), 'swatch swatch--text');
+    assert.equal(свотчи.length, 1, 'невыбранных свотчей должно быть видно');
+    свотчи[0].click();
 
-    assert.equal(app.state.textColor, '#e11d48');
-    assert.equal(front.color, '#e11d48', 'надпись осталась старого цвета');
+    assert.equal(app.state.textColor, '#e2001a');
+    assert.equal(front.color, '#e2001a', 'надпись осталась старого цвета');
     assert.ok(refreshed.length > 0, 'живые узлы не перекрашены');
   } finally {
     globalThis.document = prev;
@@ -111,23 +114,48 @@ test('пикер цвета перекрашивает УЖЕ набранную
 });
 
 // Маленькие превью сторон и цена собираются в renderPanel, а не в живых узлах сцены.
-// Пока пикер тянут, перерисовывать нельзя, поэтому догоняем их на закрытии пикера.
-test('закрытие пикера цвета перерисовывает панель (превью сторон и цена)', () => {
+// У свотча, в отличие от пикера, тянуть нечего — перерисовываем сразу по клику.
+test('выбор цвета перерисовывает панель (превью сторон и цена)', () => {
   const prev = globalThis.document;
   globalThis.document = stubDocument();
   try {
     const { app } = appWithText();
-    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
+    app.config = {
+      fonts: [{ id: 'oswald', name: 'Oswald' }],
+      textColors: [{ id: 'red', name: 'Красный', hex: '#e2001a' }],
+    };
     let renders = 0;
     app.render = () => { renders++; };
 
-    const picker = findByClass(app.textField(), 'text-opts__picker');
-    picker.value = '#e11d48';
-    for (const fn of picker.on.input ?? []) fn({});
-    assert.equal(renders, 0, 'перерисовка во время тяги закрыла бы пикер');
+    const свотч = findByClass(app.textField(), 'swatch swatch--text');
+    assert.ok(свотч, 'свотч цвета не найден в панели');
+    свотч.click();
+    assert.equal(renders, 1, 'после выбора цвета панель обязана пересобраться');
+  } finally {
+    globalThis.document = prev;
+  }
+});
 
-    for (const fn of picker.on.change ?? []) fn({});
-    assert.equal(renders, 1);
+// Подписи над палитрой больше нет — клиент просил её убрать («убрать надпись Цвет надписи»).
+test('над палитрой нет подписи, а цвета берутся из конфига', () => {
+  const prev = globalThis.document;
+  globalThis.document = stubDocument();
+  try {
+    const { app } = appWithText();
+    app.config = {
+      fonts: [{ id: 'oswald', name: 'Oswald' }],
+      textColors: [{ id: 'white', name: 'Белый', hex: '#ffffff' },
+                   { id: 'black', name: 'Чёрный', hex: '#111111' },
+                   { id: 'red', name: 'Красный', hex: '#e2001a' }],
+    };
+    app.render = () => {};
+    const field = app.textField();
+    const ряд = findByClass(field, 'text-opts__color');
+    assert.ok(ряд, 'ряд палитры должен существовать');
+    const свои = (ряд.children ?? []).filter((k) => String(k.className || '').includes('swatch'));
+    assert.equal(свои.length, 3, 'в ряду обязаны быть только свотчи, по одному на цвет конфига');
+    assert.equal(ряд.children.length, свои.length, 'подпись над палитрой вернулась');
+    assert.equal(findByClass(field, 'text-opts__picker'), null, 'RGB-пикер вернулся');
   } finally {
     globalThis.document = prev;
   }

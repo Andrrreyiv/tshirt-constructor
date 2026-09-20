@@ -605,26 +605,31 @@ export class TshirtApp {
     const opts = el('div', 'text-opts');
     const fontBox = this.fontList();
     opts.append(fontBox);
-    const colorRow = el('label', 'text-opts__color');
-    colorRow.append(el('span', '', 'Цвет надписи'));
-    const color = el('input', 'text-opts__picker');
-    color.type = 'color'; // U8: полный RGB-пикер, в отличие от цветов изделия
-    color.value = this.state.textColor;
-    // input у пикера летит непрерывно, пока его тянут, поэтому здесь НЕЛЬЗЯ вызывать
-    // render(): панель пересоберётся и пикер закроется под рукой. Дескрипторы правим
-    // сразу (иначе следующая перерисовка вернёт старый цвет), узлы красим по месту.
-    // ⚠️ Названия шрифтов ЗДЕСЬ НЕ КРАСИМ. Клиент 26.08 (голос 11-05-58): «сделал футболку
-    // чёрный и поменял шрифт на белый цвет… где поля выбор шрифтов, они стали белыми,
-    // их вообще не видно… Они должны быть всегда чёрными. Независимо от того, что
-    // выбирает человек на футболку». Цвет образцов задан в CSS и от state не зависит.
-    color.addEventListener('input', () => {
-      this.state.textColor = color.value;
-      dot.style.background = color.value; // кружок на кнопке — по месту, render() здесь нельзя
-      this.restyleTextLayers({ color: color.value });
-    });
-    // Пикер закрыли — теперь можно пересобрать панель и догнать превью сторон и цену.
-    color.addEventListener('change', () => this.render());
-    colorRow.append(color);
+    // Клиент 20.09: «может тогда уже всё сделаем как здесь, сможете добавить эти же цвета
+    // и убрать надпись Цвет надписи» — показывал конструктор ФОРМЫ. Поэтому здесь те же семь
+    // свотчей, что у формы, и без подписи над ними.
+    // ⚠️ Это отменяет U8 ТЗ (полный RGB-пикер) по прямой просьбе клиента. Вернуть пикер =
+    // вернуть input[type=color] сюда же.
+    // ⚠️ Названия шрифтов от цвета надписи НЕ красим. Клиент 26.08 (голос 11-05-58): «сделал
+    // футболку чёрный и поменял шрифт на белый цвет… где поля выбор шрифтов, они стали белыми,
+    // их вообще не видно». Цвет образцов задан в CSS и от state не зависит.
+    const colorRow = el('div', 'text-opts__color');
+    for (const тон of this.config.textColors ?? []) {
+      const выбран = String(тон.hex).toLowerCase() === String(this.state.textColor).toLowerCase();
+      const sw = el('button', 'swatch swatch--text' + (выбран ? ' swatch--active' : ''));
+      sw.type = 'button';
+      sw.style.background = тон.hex;
+      sw.title = тон.name;
+      sw.setAttribute('aria-label', 'Цвет надписи: ' + тон.name);
+      sw.setAttribute('aria-pressed', String(выбран));
+      sw.addEventListener('click', () => {
+        this.state.textColor = тон.hex;
+        dot.style.background = тон.hex; // кружок на кнопке «Цвет» — сразу, до перерисовки
+        this.restyleTextLayers({ color: тон.hex });
+        this.render();
+      });
+      colorRow.append(sw);
+    }
     opts.append(colorRow);
     field.append(opts);
 
