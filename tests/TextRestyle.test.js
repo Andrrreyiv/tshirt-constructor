@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { TshirtApp } from '../src/js/ui/TshirtApp.js';
 import { LayerManager } from '../src/js/tshirt/LayerManager.js';
 import { PanelAccordion } from '../src/js/ui/PanelAccordion.js';
+import { readFileSync } from 'node:fs';
 
 function appWithText() {
   const app = Object.create(TshirtApp.prototype);
@@ -130,6 +131,81 @@ test('закрытие пикера цвета перерисовывает па
   } finally {
     globalThis.document = prev;
   }
+});
+
+// ── Две кнопки «Шрифт» и «Цвет» вместо бейджа (клиент 20.09) ──────────────────────────
+// Голосом о двух вещах сразу: «можете эти кнопки в конструктор футболок добавить» (те же,
+// что сделаны в конструкторе формы) и «где поле добавить текст, как-то его выделить,
+// а то его по факту нет». Вёрстку тесты не стерегут, поэтому здесь — разметка и то
+// правило CSS, потеря которого оставляет обе панели раскрытыми.
+test('под полем надписи стоят две кнопки, бейджа больше нет', () => {
+  const prev = globalThis.document;
+  globalThis.document = stubDocument();
+  try {
+    const { app } = appWithText();
+    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }, { id: 'rpl', name: 'РПЛ' }] };
+    app.render = () => {};
+
+    const field = app.textField();
+    const кнопки = collectByClass(field, 'text-fc__btn');
+    assert.equal(кнопки.length, 2, 'кнопок «Шрифт» и «Цвет» должно быть ровно две');
+    assert.equal(findByClass(field, 'text-badge'), null, 'вернулся прежний бейдж «Шрифт и цвет»');
+
+    const имя = findByClass(field, 'text-fc__val');
+    assert.equal(имя.textContent, 'Oswald', 'на кнопке обязано стоять имя текущего шрифта');
+    const кружок = findByClass(field, 'text-fc__dot');
+    assert.equal(кружок.style.background, '#111111', 'кружок обязан показывать текущий цвет');
+  } finally {
+    globalThis.document = prev;
+  }
+});
+
+// Открыта всегда ровно одна панель: иначе поле вырастает вдвое, а клиент просил обратного.
+test('кнопки раскрывают по одной панели и закрываются повторным нажатием', () => {
+  const prev = globalThis.document;
+  globalThis.document = stubDocument();
+  try {
+    const { app } = appWithText();
+    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
+    app.render = () => {};
+
+    const field = app.textField();
+    const [шрифт, цвет] = collectByClass(field, 'text-fc__btn');
+    const список = findByClass(field, 'font-list');
+    const цветРяд = findByClass(field, 'text-opts__color');
+    assert.ok(список && цветРяд);
+
+    // Старт: всё свёрнуто.
+    assert.equal(список.hidden, true);
+    assert.equal(цветРяд.hidden, true);
+
+    шрифт.click();
+    assert.equal(список.hidden, false, 'список шрифтов не раскрылся');
+    assert.equal(цветРяд.hidden, true, 'цвет обязан оставаться скрытым');
+
+    цвет.click();
+    assert.equal(список.hidden, true, 'список шрифтов обязан закрыться');
+    assert.equal(цветРяд.hidden, false, 'палитра цвета не раскрылась');
+
+    цвет.click();
+    assert.equal(цветРяд.hidden, true, 'повторное нажатие обязано закрывать');
+    assert.equal(app.panels.isOpen('text'), false, 'аккордеон остался открытым');
+  } finally {
+    globalThis.document = prev;
+  }
+});
+
+// Поле ввода было прозрачным и читалось как подпись — клиент его «по факту» не видел.
+// ⚠️ И гашение панелей: `display: flex` перебивает атрибут hidden, без правила обе видны.
+test('CSS: поле надписи выделено рамкой, скрытые панели действительно скрыты', () => {
+  const css = readFileSync(new URL('../src/css/app.css', import.meta.url), 'utf8');
+  const поле = css.match(/^\.design-row__input \{([^}]*)\}/m); // ^ — иначе цепляет медиа-правило
+  assert.ok(поле, 'правило .design-row__input пропало');
+  assert.match(поле[1], /border: 1\.5px solid/, 'поле снова без рамки — его не видно');
+  assert.doesNotMatch(поле[1], /background: none/, 'прозрачный фон возвращает прежний дефект');
+  assert.match(css, /\.text-opts\[hidden\], \.font-list\[hidden\], \.text-opts__color\[hidden\] \{ display: none; \}/,
+    'без явного гашения скрытые панели остаются на экране');
+  assert.match(css, /\.text-fc__btn \{/, 'стили кнопок «Шрифт» и «Цвет» пропали');
 });
 
 /** Все узлы поддерева с данным className. */

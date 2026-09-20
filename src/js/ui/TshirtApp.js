@@ -554,10 +554,16 @@ export class TshirtApp {
   }
 
   /**
-   * Строка надписи по макету клиента 30.07: «Добавить текст» слева, бейдж «Шрифт и цвет»
-   * справа. Пока поле пустое, строка выглядит ровно как в макете (подпись — это placeholder).
-   * Кнопка «Добавить» появляется только когда есть что добавлять.
-   * Бейдж раскрывает выбор шрифта (ТЗ п.69) и цвета (U8 — полный RGB-пикер).
+   * Строка надписи. Клиент 20.09 голосом о ДВУХ вещах сразу:
+   *   1. «где поле добавить текст, как-то его выделить, а то его по факту нет» — поле было
+   *      без рамки и фона на кремовой плашке и читалось как подпись, а не как поле ввода;
+   *   2. «можете эти кнопки в конструктор футболок добавить» — те же две кнопки «Шрифт»
+   *      и «Цвет», что сделаны 20.09 в конструкторе формы вместо мелкой ссылки.
+   * Поэтому вместо бейджа «Шрифт и цвет» под полем стоят две кнопки, и на каждой видно
+   * текущее значение (имя шрифта, кружок цвета) ещё до нажатия.
+   * ⛔ Механика прежняя: список выезжает ВНИЗ прямо в поле и сдвигает блоки под собой,
+   * всплывающих окон поверх футболки нет. Открыта всегда ровно одна панель.
+   * Выбор цвета остаётся полным RGB-пикером (U8), а не набором свотчей.
    */
   textField() {
     const field = el('div', 'field');
@@ -574,15 +580,28 @@ export class TshirtApp {
     input.addEventListener('input', () => this.liveText(input.value));
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
-    const badge = el('button', 'text-badge');
-    badge.type = 'button';
-    badge.append(el('span', 'text-badge__dot'), document.createTextNode('Шрифт и цвет'));
-
-    row.append(input, badge);
+    row.append(input);
     field.append(row);
 
+    // Две кнопки под полем: по виду как само поле, значение видно сразу.
+    const fcRow = el('div', 'text-fc');
+    const fontBtn = el('button', 'text-fc__btn');
+    fontBtn.type = 'button';
+    fontBtn.setAttribute('aria-label', 'Шрифт надписи');
+    const fontVal = el('span', 'text-fc__val', this.currentFontName());
+    fontBtn.append(el('span', 'text-fc__label', 'Шрифт'), fontVal, el('span', 'text-fc__chev', '›'));
+    const colorBtn = el('button', 'text-fc__btn');
+    colorBtn.type = 'button';
+    colorBtn.setAttribute('aria-label', 'Цвет надписи');
+    const dot = el('span', 'text-fc__dot');
+    dot.style.background = this.state.textColor;
+    colorBtn.append(el('span', 'text-fc__label', 'Цвет'), dot);
+    fcRow.append(fontBtn, colorBtn);
+    field.append(fcRow);
+
     const opts = el('div', 'text-opts');
-    opts.append(this.fontList());
+    const fontBox = this.fontList();
+    opts.append(fontBox);
     const colorRow = el('label', 'text-opts__color');
     colorRow.append(el('span', '', 'Цвет надписи'));
     const color = el('input', 'text-opts__picker');
@@ -597,6 +616,7 @@ export class TshirtApp {
     // выбирает человек на футболку». Цвет образцов задан в CSS и от state не зависит.
     color.addEventListener('input', () => {
       this.state.textColor = color.value;
+      dot.style.background = color.value; // кружок на кнопке — по месту, render() здесь нельзя
       this.restyleTextLayers({ color: color.value });
     });
     // Пикер закрыли — теперь можно пересобрать панель и догнать превью сторон и цену.
@@ -605,17 +625,42 @@ export class TshirtApp {
     opts.append(colorRow);
     field.append(opts);
 
-    // Корень поля — весь `field`: и кнопка, и список шрифтов, и пикер цвета. Клик по
+    // Корень поля — весь `field`: и кнопки, и список шрифтов, и пикер цвета. Клик по
     // любому из них считается «внутри», а значит выбор шрифта список не захлопывает.
+    // Какая из двух панелей раскрыта, помнит `_textPanel`: render() пересобирает поле
+    // целиком, и без этого список схлопывался бы после каждого выбора шрифта.
     this._registerPanel('text', field, (open) => {
+      const какая = open ? (this._textPanel || 'font') : '';
+      if (!open) this._textPanel = '';
       opts.hidden = !open;
-      badge.setAttribute('aria-expanded', String(open));
+      fontBox.hidden = какая !== 'font';
+      colorRow.hidden = какая !== 'color';
+      fontBtn.className = 'text-fc__btn' + (какая === 'font' ? ' text-fc__btn--open' : '');
+      colorBtn.className = 'text-fc__btn' + (какая === 'color' ? ' text-fc__btn--open' : '');
+      fontBtn.setAttribute('aria-expanded', String(какая === 'font'));
+      colorBtn.setAttribute('aria-expanded', String(какая === 'color'));
     });
-    badge.addEventListener('click', () => {
-      this.panels.toggle('text');
+    // Повторное нажатие той же кнопки закрывает, соседняя — подменяет содержимое.
+    const переключить = (какая) => {
+      if (this._textPanel === какая && this.panels.isOpen('text')) {
+        this.panels.toggle('text');
+        this._textPanel = '';
+      } else {
+        this._textPanel = какая;
+        this.panels.openOnly('text');
+      }
       this._syncPanels();
-    });
+    };
+    fontBtn.addEventListener('click', () => переключить('font'));
+    colorBtn.addEventListener('click', () => переключить('color'));
     return field;
+  }
+
+  /** Имя текущего шрифта — оно стоит прямо на кнопке «Шрифт». */
+  currentFontName() {
+    const id = this.currentFontId();
+    const f = (this.config.fonts ?? []).find((x) => x.id === id);
+    return f ? f.name : '';
   }
 
   /** Список шрифтов: образец нарисован самим шрифтом, чтобы выбирали глазами. */
