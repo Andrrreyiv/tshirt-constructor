@@ -571,12 +571,10 @@ export class TshirtApp {
     const row = el('div', 'design-row design-row--text');
     const input = el('input', 'design-row__input');
     input.type = 'text';
-    // Клиент 20.09: «а где поле добавить текст, как-то его выделить, а то его по факту нет».
-    // Дословно так и было: у соседнего ряда стоит живая кнопка «Добавить принт», а здесь
-    // весь блок держался на СЕРОЙ ПОДСКАЗКЕ внутри поля — textContent ряда был пустой.
-    // Теперь «Добавить текст» — настоящая подпись над полем, как у принта, а подсказка
-    // внутри показывает, чего от человека ждут.
-    input.placeholder = 'Например: МАША';
+    // Клиент 20.09 (голосовое 14:42): «эту фразу добавить текст нужно вставить в поле, где
+    // написано например Маша… убрать надпись добавить текст, она не нужна, просто мы внутри
+    // в этом поле напишем добавить текст, и люди и так поймут».
+    input.placeholder = 'Добавить текст';
     input.value = this.state.textInput;
     input.setAttribute('aria-label', 'Текст надписи');
     // Клиент 01.08: «убрать кнопочку добавить, она очень сильно сужает поле… как только
@@ -585,25 +583,24 @@ export class TshirtApp {
     input.addEventListener('input', () => this.liveText(input.value));
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 
-    const caption = el('span', 'design-row__caption', 'Добавить текст');
-    row.append(caption, input);
-    field.append(row);
+    row.append(input);
 
-    // Две кнопки под полем: по виду как само поле, значение видно сразу.
-    const fcRow = el('div', 'text-fc');
-    const fontBtn = el('button', 'text-fc__btn');
+    // Кнопки живут ВНУТРИ бежевой плашки, на всю её ширину, и сделаны тем же сегментом,
+    // что «Грудь / Спина» (клиент 20.09: «они не выходят из этого блока… они отдельно
+    // и на всю ширину самого этого блока… вместо грудь и спина… кнопку шрифт в белом фоне
+    // залить, а цвет сделать залипшим»). Выбранная кнопка залита белым, как там.
+    const seg = el('div', 'seg text-seg');
+    const fontBtn = el('button', 'seg__btn');
     fontBtn.type = 'button';
-    fontBtn.setAttribute('aria-label', 'Шрифт надписи');
-    const fontVal = el('span', 'text-fc__val', this.currentFontName());
-    fontBtn.append(el('span', 'text-fc__label', 'Шрифт'), fontVal, el('span', 'text-fc__chev', '›'));
-    const colorBtn = el('button', 'text-fc__btn');
+    fontBtn.append(document.createTextNode('Шрифт'), el('small', '', this.currentFontName()));
+    const colorBtn = el('button', 'seg__btn');
     colorBtn.type = 'button';
-    colorBtn.setAttribute('aria-label', 'Цвет надписи');
-    const dot = el('span', 'text-fc__dot');
+    const dot = el('small', 'text-seg__dot');
     dot.style.background = this.state.textColor;
-    colorBtn.append(el('span', 'text-fc__label', 'Цвет'), dot);
-    fcRow.append(fontBtn, colorBtn);
-    field.append(fcRow);
+    colorBtn.append(document.createTextNode('Цвет'), dot);
+    seg.append(fontBtn, colorBtn);
+    row.append(seg);
+    field.append(row);
 
     const opts = el('div', 'text-opts');
     const fontBox = this.fontList();
@@ -641,10 +638,10 @@ export class TshirtApp {
       opts.hidden = !open;
       fontBox.hidden = какая !== 'font';
       colorRow.hidden = какая !== 'color';
-      fontBtn.className = 'text-fc__btn' + (какая === 'font' ? ' text-fc__btn--open' : '');
-      colorBtn.className = 'text-fc__btn' + (какая === 'color' ? ' text-fc__btn--open' : '');
-      fontBtn.setAttribute('aria-expanded', String(какая === 'font'));
-      colorBtn.setAttribute('aria-expanded', String(какая === 'color'));
+      fontBtn.className = 'seg__btn' + (какая === 'font' ? ' seg__btn--active' : '');
+      colorBtn.className = 'seg__btn' + (какая === 'color' ? ' seg__btn--active' : '');
+      fontBtn.setAttribute('aria-pressed', String(какая === 'font'));
+      colorBtn.setAttribute('aria-pressed', String(какая === 'color'));
     });
     // Повторное нажатие той же кнопки закрывает, соседняя — подменяет содержимое.
     const переключить = (какая) => {

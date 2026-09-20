@@ -133,103 +133,77 @@ test('закрытие пикера цвета перерисовывает па
   }
 });
 
-// ── Две кнопки «Шрифт» и «Цвет» вместо бейджа (клиент 20.09) ──────────────────────────
-// Голосом о двух вещах сразу: «можете эти кнопки в конструктор футболок добавить» (те же,
-// что сделаны в конструкторе формы) и «где поле добавить текст, как-то его выделить,
-// а то его по факту нет». Вёрстку тесты не стерегут, поэтому здесь — разметка и то
-// правило CSS, потеря которого оставляет обе панели раскрытыми.
-test('под полем надписи стоят две кнопки, бейджа больше нет', () => {
-  const prev = globalThis.document;
-  globalThis.document = stubDocument();
-  try {
-    const { app } = appWithText();
-    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }, { id: 'rpl', name: 'РПЛ' }] };
-    app.render = () => {};
-
-    const field = app.textField();
-    const кнопки = collectByClass(field, 'text-fc__btn');
-    assert.equal(кнопки.length, 2, 'кнопок «Шрифт» и «Цвет» должно быть ровно две');
-    assert.equal(findByClass(field, 'text-badge'), null, 'вернулся прежний бейдж «Шрифт и цвет»');
-
-    const имя = findByClass(field, 'text-fc__val');
-    assert.equal(имя.textContent, 'Oswald', 'на кнопке обязано стоять имя текущего шрифта');
-    const кружок = findByClass(field, 'text-fc__dot');
-    assert.equal(кружок.style.background, '#111111', 'кружок обязан показывать текущий цвет');
-  } finally {
-    globalThis.document = prev;
-  }
-});
-
-// Открыта всегда ровно одна панель: иначе поле вырастает вдвое, а клиент просил обратного.
-test('кнопки раскрывают по одной панели и закрываются повторным нажатием', () => {
+// ── Вид блока надписи по голосовому клиента 20.09 14:42 ───────────────────────────────
+// Дословно: «эту фразу добавить текст нужно вставить в поле, где написано например Маша…
+// убрать надпись добавить текст, она не нужна»; «они не выходят из этого блока… отдельно
+// и на всю ширину самого этого блока»; «вместо грудь и спина… кнопку шрифт в белом фоне
+// залить, а цвет сделать залипшим».
+test('подсказка стоит в поле, отдельной подписи над ним нет', () => {
   const prev = globalThis.document;
   globalThis.document = stubDocument();
   try {
     const { app } = appWithText();
     app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
     app.render = () => {};
-
     const field = app.textField();
-    const [шрифт, цвет] = collectByClass(field, 'text-fc__btn');
-    const список = findByClass(field, 'font-list');
-    const цветРяд = findByClass(field, 'text-opts__color');
-    assert.ok(список && цветРяд);
+    const поле = findByClass(field, 'design-row__input');
+    assert.equal(поле.placeholder, 'Добавить текст', 'подсказка в поле обязана быть этими словами');
+    assert.equal(findByClass(field, 'design-row__caption'), null,
+      'подпись над полем вернулась, а клиент просил её убрать');
+  } finally {
+    globalThis.document = prev;
+  }
+});
 
-    // Старт: всё свёрнуто.
-    assert.equal(список.hidden, true);
-    assert.equal(цветРяд.hidden, true);
+test('кнопки «Шрифт» и «Цвет» лежат ВНУТРИ плашки и сделаны сегментом', () => {
+  const prev = globalThis.document;
+  globalThis.document = stubDocument();
+  try {
+    const { app } = appWithText();
+    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
+    app.render = () => {};
+    const field = app.textField();
+    const плашка = findByClass(field, 'design-row design-row--text');
+    assert.ok(плашка, 'плашка надписи должна существовать');
+    const сегмент = findByClass(плашка, 'seg text-seg');
+    assert.ok(сегмент, 'сегмент обязан лежать ВНУТРИ плашки, а не под ней');
+    assert.equal(collectByClass(сегмент, 'seg__btn').length, 2, 'кнопок должно быть две');
+    assert.equal(findByClass(field, 'text-fc'), null, 'прежний ряд кнопок под плашкой вернулся');
+  } finally {
+    globalThis.document = prev;
+  }
+});
+
+test('выбранная кнопка залита белым, как активная в «Грудь | Спина»', () => {
+  const prev = globalThis.document;
+  globalThis.document = stubDocument();
+  try {
+    const { app } = appWithText();
+    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
+    app.render = () => {};
+    const field = app.textField();
+    const [шрифт, цвет] = collectByClass(field, 'seg__btn');
+    assert.ok(!/seg__btn--active/.test(шрифт.className), 'на старте ничего не залито');
 
     шрифт.click();
-    assert.equal(список.hidden, false, 'список шрифтов не раскрылся');
-    assert.equal(цветРяд.hidden, true, 'цвет обязан оставаться скрытым');
+    assert.match(шрифт.className, /seg__btn--active/, 'нажатая кнопка обязана залипать');
+    assert.ok(!/seg__btn--active/.test(цвет.className), 'залипшей может быть только одна');
 
     цвет.click();
-    assert.equal(список.hidden, true, 'список шрифтов обязан закрыться');
-    assert.equal(цветРяд.hidden, false, 'палитра цвета не раскрылась');
-
-    цвет.click();
-    assert.equal(цветРяд.hidden, true, 'повторное нажатие обязано закрывать');
-    assert.equal(app.panels.isOpen('text'), false, 'аккордеон остался открытым');
+    assert.match(цвет.className, /seg__btn--active/);
+    assert.ok(!/seg__btn--active/.test(шрифт.className), 'прежняя обязана отпускаться');
   } finally {
     globalThis.document = prev;
   }
 });
 
-// Клиент 20.09 дословно: «а где поле добавить текст, как-то его выделить, а то его по факту
-// нет». Так и было: у соседнего ряда живая кнопка «Добавить принт», а весь текстовый блок
-// держался на СЕРОЙ ПОДСКАЗКЕ внутри поля — видимого текста в ряду не было вовсе.
-test('«Добавить текст» — живая подпись в ряду, а не только подсказка в поле', () => {
-  const prev = globalThis.document;
-  globalThis.document = stubDocument();
-  try {
-    const { app } = appWithText();
-    app.config = { fonts: [{ id: 'oswald', name: 'Oswald' }] };
-    app.render = () => {};
-
-    const field = app.textField();
-    const подпись = findByClass(field, 'design-row__caption');
-    assert.ok(подпись, 'подпись «Добавить текст» пропала из ряда');
-    assert.equal(подпись.textContent, 'Добавить текст');
-
-    const поле = findByClass(field, 'design-row__input');
-    assert.notEqual(поле.placeholder, 'Добавить текст',
-      'подсказка обязана показывать пример, а не дублировать подпись');
-  } finally {
-    globalThis.document = prev;
-  }
-});
-
-// Поле ввода было прозрачным и читалось как подпись — клиент его «по факту» не видел.
-// ⚠️ И гашение панелей: `display: flex` перебивает атрибут hidden, без правила обе видны.
-test('CSS: поле надписи выделено рамкой, скрытые панели действительно скрыты', () => {
+// Панели по-прежнему гасятся явно: display: flex перебивает атрибут hidden.
+test('скрытые панели действительно скрыты в CSS, сегмент без своего фона', () => {
   const css = readFileSync(new URL('../src/css/app.css', import.meta.url), 'utf8');
-  const поле = css.match(/^\.design-row__input \{([^}]*)\}/m); // ^ — иначе цепляет медиа-правило
-  assert.ok(поле, 'правило .design-row__input пропало');
-  assert.match(поле[1], /border: 1\.5px solid/, 'поле снова без рамки — его не видно');
-  assert.doesNotMatch(поле[1], /background: none/, 'прозрачный фон возвращает прежний дефект');
   assert.match(css, /\.text-opts\[hidden\], \.font-list\[hidden\], \.text-opts__color\[hidden\] \{ display: none; \}/,
     'без явного гашения скрытые панели остаются на экране');
-  assert.match(css, /\.text-fc__btn \{/, 'стили кнопок «Шрифт» и «Цвет» пропали');
+  assert.match(css, /\.text-seg \{[^}]*\}/, 'стили сегмента внутри плашки пропали');
+  assert.match(css, /\.text-seg__dot \{/, 'кружок цвета на кнопке «Цвет» пропал');
 });
 
 /** Все узлы поддерева с данным className. */

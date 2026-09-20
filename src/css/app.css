@@ -596,7 +596,7 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
   .lib__cell { min-height: 56px; }
   .design-row__btn { min-height: 46px; }
   .design-row__input { min-height: 46px; }
-  .text-fc__btn { min-height: 46px; }
+  .text-seg .seg__btn { min-height: 46px; }
   .font-opt { min-height: 48px; }
   .text-opts__picker { width: 52px; height: 40px; }
   /* Крестик и ручка принта живут на самом макете: раздувать их визуально нельзя —
@@ -644,12 +644,17 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 /* Ряд текста идёт столбиком: подпись сверху, поле под ней. В строку они не встают —
    поле тогда сжимается до неприличия, а клиент 01.08 уже просил обратного. */
 .design-row--text { cursor: default; gap: 8px; flex-direction: column; align-items: stretch; }
-/* Подпись «Добавить текст» — ровно того же вида, что кнопка «Добавить принт» в соседнем
-   ряду: клиент искал текстовый блок глазами и не находил, потому что тот держался
-   на одной серой подсказке внутри поля. */
-.design-row__caption {
-  font-size: 15px; font-weight: 700; color: var(--brand-strong);
-  line-height: 1.2;
+/* Сегмент «Шрифт | Цвет» ВНУТРИ бежевой плашки, на всю её ширину (клиент 20.09, голосовое:
+   «они не выходят из этого блока… отдельно и на всю ширину самого этого блока»).
+   Своего фона и рамки у него нет: плашка уже бежевая, и белая залитая кнопка читается
+   на ней ровно так же, как активная в переключателе «Грудь | Спина». */
+.text-seg { background: #fff8; border: 1.5px solid var(--line-strong); padding: 4px; }
+.text-seg .seg__btn { padding: 10px 8px; }
+/* Кружок текущего цвета вместо подзаголовка у кнопки «Цвет». */
+.text-seg__dot {
+  display: block; width: 16px; height: 16px; margin: 3px auto 0;
+  border-radius: 50%; border: 1.5px solid var(--line-strong);
+  box-shadow: inset 0 0 0 1px #fff;
 }
 .design-row__input {
   flex: 1; min-width: 0;
@@ -663,39 +668,10 @@ button, .swatch, .seg__btn, .lib__cell, .design-row, label {
 .design-row__input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-ring); }
 .design-row__input:focus::placeholder { color: var(--muted); }
 
-/* Две кнопки «Шрифт» и «Цвет» под полем — те же, что в конструкторе формы (клиент 20.09:
-   «можете эти кнопки в конструктор футболок добавить»). По виду это поля ввода, и текущее
-   значение видно ещё до нажатия: имя шрифта и кружок цвета. */
-.text-fc { display: flex; gap: 8px; margin-top: 8px; }
-.text-fc__btn {
-  flex: 1 1 0; min-width: 0;
-  display: flex; align-items: center; gap: 6px;
-  padding: 11px 10px; cursor: pointer; text-align: left;
-  border: 1.5px solid var(--line-strong); border-radius: var(--r-sm);
-  background: #fff; color: var(--ink);
-  font-family: inherit; font-size: 14px;
-  transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-}
-.text-fc__btn:hover { border-color: var(--brand); }
-.text-fc__btn--open { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-ring); }
-.text-fc__label { flex: 0 0 auto; font-weight: 700; white-space: nowrap; }
-.text-fc__val {
-  flex: 1 1 auto; min-width: 0; text-align: right;
-  font-size: 12px; font-weight: 700; color: var(--ink-2);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.text-fc__chev { flex: 0 0 auto; color: var(--ink-2); font-size: 17px; line-height: 1; transition: transform .16s var(--ease); }
-.text-fc__btn--open .text-fc__chev { transform: rotate(90deg); }
-.text-fc__dot {
-  flex: 0 0 auto; margin-left: auto; width: 20px; height: 20px; border-radius: 50%;
-  border: 1.5px solid var(--line-strong); box-shadow: inset 0 0 0 1px #fff;
-}
-/* ⚠️ Ниже стилей кнопок, а не в общем медиа-блоке выше: при равной специфичности
-   побеждает правило, стоящее ПОЗЖЕ, и вынесенное наверх просто не срабатывало.
-   На 360 px длинное имя («Prosto One») иначе режется многоточием. */
+/* На 360 px длинное имя шрифта («Prosto One») в подзаголовке кнопки иначе не помещается. */
 @media (max-width: 560px) {
-  .text-fc__btn { font-size: 13.5px; }
-  .text-fc__val { font-size: 11.5px; }
+  .text-seg .seg__btn { font-size: 13.5px; }
+  .text-seg .seg__btn small { font-size: 10px; }
 }
 /* Раскрытый выбор шрифта и цвета надписи. */
 .text-opts { margin-top: 10px; }
